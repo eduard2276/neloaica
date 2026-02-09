@@ -35,3 +35,5 @@ Thumbs.db
 # Qt specific
 *.qmlc
 *.jsc
+# Exports
+exports/
