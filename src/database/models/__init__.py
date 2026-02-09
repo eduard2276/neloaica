@@ -61,6 +61,14 @@ from .defects import (
     get_defects_count,
 )
 
+# Import all settings functions
+from .settings import (
+    create_settings_table,
+    get_tva,
+    update_tva,
+    get_all_settings,
+)
+
 __all__ = [
     # Initialization
     "init_database",
@@ -101,6 +109,10 @@ __all__ = [
     "update_defect",
     "delete_defect",
     "get_defects_count",
+    # Settings functions
+    "get_tva",
+    "update_tva",
+    "get_all_settings",
 ]
 
 
@@ -111,6 +123,7 @@ def init_database():
     create_labor_table()
     create_parts_table()
     create_defects_table()
+    create_settings_table()
 
 
 def populate_mock_data():
