@@ -3,11 +3,13 @@
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
+    QHBoxLayout,
     QFormLayout,
     QLabel,
     QLineEdit,
     QGroupBox,
-    QDateEdit,
+    QPushButton,
+    QCalendarWidget,
 )
 from PySide6.QtCore import Qt, Signal, QDate
 
@@ -91,36 +93,30 @@ class ReceiptInfoWidget(QWidget):
         self.model_input.setStyleSheet(readonly_style)
         self.km_input.setStyleSheet(editable_style)
         
-        # Date picker
-        self.date_input = QDateEdit()
-        self.date_input.setCalendarPopup(True)
-        self.date_input.setDate(QDate.currentDate())
-        self.date_input.setDisplayFormat("dd.MM.yyyy")
-        self.date_input.setMaximumWidth(200)
-        self.date_input.setStyleSheet(f"""
-            QDateEdit {{
-                padding: 8px;
-                border: 2px solid {theme._colors['border']};
-                border-radius: 6px;
-                background-color: {theme._colors['bg_primary']};
-                color: {theme._colors['text_primary']};
-                font-size: 14px;
-            }}
-            QDateEdit:focus {{
-                border-color: {theme._colors['border_focus']};
-            }}
-            QDateEdit::drop-down {{
-                border: none;
-                padding-right: 10px;
-            }}
-        """)
-        self.date_input.dateChanged.connect(lambda: self.emit_data_changed())
+        # Date picker (QLineEdit with overlaid calendar button)
+        self.date_display = QLineEdit()
+        self.date_display.setReadOnly(True)
+        self.date_display.setText(QDate.currentDate().toString("dd.MM.yyyy"))
+        self.date_display.setStyleSheet(editable_style)
+        self.date_display.setMaximumWidth(200)
+        
+        self.date_button = QPushButton("📅", self.date_display)
+        self.date_button.setFixedSize(28, 28)
+        self.date_button.setStyleSheet("QPushButton { background: transparent; border: none; font-size: 16px; } QPushButton:hover { background-color: #e0e0e0; border-radius: 4px; }")
+        self.date_button.setToolTip("Pick a date")
+        self.date_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.date_button.clicked.connect(self.show_calendar)
+        
+        # Position button inside the input on the right side
+        self.date_display.setTextMargins(0, 0, 30, 0)
+        
+        self._selected_date = QDate.currentDate()
         
         form_layout.addRow("Plate Number:", self.plate_input)
         form_layout.addRow("VIN:", self.vin_input)
         form_layout.addRow("Model:", self.model_input)
         form_layout.addRow("Kilometers:", self.km_input)
-        form_layout.addRow("Date:", self.date_input)
+        form_layout.addRow("Date:", self.date_display)
         
         form_group.setLayout(form_layout)
         layout.addWidget(form_group)
@@ -287,6 +283,46 @@ class ReceiptInfoWidget(QWidget):
         # Remove all spaces and non-digit characters
         return ''.join(c for c in text if c.isdigit())
     
+    def resizeEvent(self, event):
+        """Reposition the calendar button inside the date input."""
+        super().resizeEvent(event)
+        if hasattr(self, 'date_button') and hasattr(self, 'date_display'):
+            btn_x = self.date_display.width() - self.date_button.width() - 5
+            btn_y = (self.date_display.height() - self.date_button.height()) // 2
+            self.date_button.move(btn_x, btn_y)
+    
+    def showEvent(self, event):
+        """Reposition calendar button when shown."""
+        super().showEvent(event)
+        if hasattr(self, 'date_button') and hasattr(self, 'date_display'):
+            btn_x = self.date_display.width() - self.date_button.width() - 5
+            btn_y = (self.date_display.height() - self.date_button.height()) // 2
+            self.date_button.move(btn_x, btn_y)
+    
+    def show_calendar(self):
+        """Show a calendar popup to pick a date."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout as QVBox
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Date")
+        dialog.setMinimumSize(350, 300)
+        
+        layout = QVBox(dialog)
+        
+        calendar = QCalendarWidget()
+        calendar.setSelectedDate(self._selected_date)
+        calendar.setGridVisible(True)
+        layout.addWidget(calendar)
+        
+        def on_date_clicked(date):
+            self._selected_date = date
+            self.date_display.setText(date.toString("dd.MM.yyyy"))
+            self.emit_data_changed()
+            dialog.accept()
+        
+        calendar.clicked.connect(on_date_clicked)
+        dialog.exec()
+    
     def clear_car_details(self):
         """Clear all car detail inputs."""
         self.plate_input.clear()
@@ -316,7 +352,7 @@ class ReceiptInfoWidget(QWidget):
             'vin': self.vin_input.text(),
             'model': self.model_input.text(),
             'kilometers': self.parse_kilometers(self.km_input.text()),
-            'date': self.date_input.date().toString("dd.MM.yyyy"),
+            'date': self._selected_date.toString("dd.MM.yyyy"),
         }
     
     def emit_data_changed(self):
