@@ -306,12 +306,79 @@ class ReceiptInfoWidget(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("Select Date")
         dialog.setMinimumSize(350, 300)
+        dialog.setStyleSheet("QDialog { background-color: white; }")
         
         layout = QVBox(dialog)
         
         calendar = QCalendarWidget()
         calendar.setSelectedDate(self._selected_date)
         calendar.setGridVisible(True)
+        calendar.setStyleSheet("""
+            QCalendarWidget QWidget {
+                color: #2c3e50;
+                font-size: 14px;
+            }
+            QCalendarWidget QAbstractItemView {
+                color: #2c3e50;
+                background-color: white;
+                selection-background-color: #1a3a6e;
+                selection-color: white;
+            }
+            QCalendarWidget QAbstractItemView::item:hover {
+                background-color: #d0d8e8;
+                border-radius: 4px;
+            }
+            QCalendarWidget QToolButton {
+                color: #1a3a6e;
+                font-size: 14px;
+                font-weight: bold;
+                background-color: white;
+                border: none;
+                padding: 5px;
+            }
+            QCalendarWidget QToolButton:hover {
+                background-color: #d0d8e8;
+                border-radius: 4px;
+            }
+            QCalendarWidget QSpinBox {
+                color: #1a3a6e;
+                font-size: 14px;
+                font-weight: bold;
+                background-color: white;
+            }
+            QCalendarWidget #qt_calendar_navigationbar {
+                background-color: #f0f2f5;
+                padding: 5px;
+            }
+        """)
+        # Hide week numbers
+        calendar.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
+        
+        # Keep Sundays red
+        from PySide6.QtGui import QTextCharFormat, QColor
+        sunday_format = QTextCharFormat()
+        sunday_format.setForeground(QColor("red"))
+        calendar.setWeekdayTextFormat(Qt.DayOfWeek.Sunday, sunday_format)
+        
+        # Grey out dates from other months
+        other_month_format = QTextCharFormat()
+        other_month_format.setForeground(QColor("#b0b0b0"))
+        
+        def update_other_month_dates():
+            current_month = calendar.monthShown()
+            current_year = calendar.yearShown()
+            first_day = QDate(current_year, current_month, 1)
+            first_visible = first_day.addDays(-(first_day.dayOfWeek() % 7))
+            for i in range(42):
+                d = first_visible.addDays(i)
+                if d.month() != current_month:
+                    calendar.setDateTextFormat(d, other_month_format)
+                else:
+                    calendar.setDateTextFormat(d, QTextCharFormat())
+        
+        update_other_month_dates()
+        calendar.currentPageChanged.connect(lambda year, month: update_other_month_dates())
+        
         layout.addWidget(calendar)
         
         def on_date_clicked(date):
