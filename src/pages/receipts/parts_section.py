@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QMessageBox,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QSize
 
 from src.database.models.parts import get_all_parts, add_part as add_part_to_db
 from src.widgets import NoScrollComboBox
@@ -137,6 +137,7 @@ class PartsSectionWidget(QWidget):
         # List of selected parts
         self.parts_list = QListWidget()
         self.parts_list.setStyleSheet(theme.list_widget())
+        self.update_list_style()
         parts_layout.addWidget(self.parts_list)
         
         parts_group.setLayout(parts_layout)
@@ -183,23 +184,25 @@ class PartsSectionWidget(QWidget):
         
         # Create list item
         item_widget = QWidget()
+        item_widget.setObjectName("partItem")
+        item_widget.setStyleSheet("#partItem, #partItem * { background-color: white; } #partItem { border-bottom: 1px solid #bdc3c7; }")
         item_layout = QHBoxLayout(item_widget)
-        item_layout.setContentsMargins(5, 5, 5, 5)
+        item_layout.setContentsMargins(10, 8, 10, 8)
         
         part_label = QLabel(part['part_name'])
         part_label.setStyleSheet(theme.label_item())
         
         remove_btn = QPushButton("🗑️")
         remove_btn.setFixedSize(30, 30)
-        remove_btn.setStyleSheet(theme.button_remove())
-        remove_btn.clicked.connect(lambda: self.remove_part(part['id']))
+        remove_btn.setStyleSheet(theme.button_icon("delete"))
+        remove_btn.clicked.connect(lambda checked, p_id=part['id']: self.remove_part(p_id))
         
         item_layout.addWidget(part_label)
         item_layout.addStretch()
         item_layout.addWidget(remove_btn)
         
         list_item = QListWidgetItem(self.parts_list)
-        list_item.setSizeHint(item_widget.sizeHint())
+        list_item.setSizeHint(QSize(0, 46))
         self.parts_list.addItem(list_item)
         self.parts_list.setItemWidget(list_item, item_widget)
         
@@ -208,6 +211,9 @@ class PartsSectionWidget(QWidget):
             if self.part_combo.itemData(i) == part['id']:
                 self.part_combo.removeItem(i)
                 break
+        
+        # Update list style based on item count
+        self.update_list_style()
         
         # Emit signal
         self.parts_changed.emit(self.selected_parts.copy())
@@ -247,8 +253,18 @@ class PartsSectionWidget(QWidget):
             if not inserted:
                 self.part_combo.addItem(part['part_name'], part['id'])
         
+        # Update list style based on item count
+        self.update_list_style()
+        
         # Emit signal
         self.parts_changed.emit(self.selected_parts.copy())
+    
+    def update_list_style(self):
+        """Update list widget background based on item count."""
+        if len(self.selected_parts) > 0:
+            self.parts_list.setStyleSheet(theme.list_widget_with_items())
+        else:
+            self.parts_list.setStyleSheet(theme.list_widget())
     
     def add_new_part_to_database(self):
         """Open dialog to add a new part to the database."""

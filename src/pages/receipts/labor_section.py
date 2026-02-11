@@ -13,9 +13,8 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QDialog,
     QMessageBox,
-    QDoubleSpinBox,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QSize
 
 from src.database.models.labor import get_all_labor, add_labor as add_labor_to_db
 from src.widgets import NoScrollComboBox
@@ -138,6 +137,7 @@ class LaborSectionWidget(QWidget):
         self.labor_list = QListWidget()
         self.labor_list.setStyleSheet(theme.list_widget())
         self.labor_list.setMinimumHeight(150)
+        self.update_list_style()
         labor_layout.addWidget(self.labor_list)
         
         # Total labor cost section
@@ -145,20 +145,18 @@ class LaborSectionWidget(QWidget):
         total_layout.setSpacing(10)
         
         total_label = QLabel("Total Labor Cost:")
-        total_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #2c3e50;")
+        total_label.setStyleSheet(theme.form_label())
         total_layout.addWidget(total_label)
         
-        total_layout.addStretch()
-        
-        self.total_cost_input = QDoubleSpinBox()
-        self.total_cost_input.setPrefix("$")
-        self.total_cost_input.setDecimals(2)
-        self.total_cost_input.setRange(0.0, 999999.99)
-        self.total_cost_input.setValue(0.0)
-        self.total_cost_input.setMinimumWidth(150)
+        self.total_cost_input = QLineEdit()
+        self.total_cost_input.setPlaceholderText("e.g. 1 500.00 Lei")
         self.total_cost_input.setStyleSheet(theme.line_edit())
-        self.total_cost_input.valueChanged.connect(self.emit_labor_changed)
+        self.total_cost_input.setMaximumWidth(200)
+        self._cost_updating = False
+        self.total_cost_input.textChanged.connect(self.on_cost_text_changed)
         total_layout.addWidget(self.total_cost_input)
+        
+        total_layout.addStretch()
         
         labor_layout.addLayout(total_layout)
         
@@ -169,7 +167,7 @@ class LaborSectionWidget(QWidget):
         # Store current selections if restoring
         if restore_state:
             current_labor = self.selected_labor.copy()
-            current_total = self.total_cost_input.value()
+            current_total = self.total_cost_input.text()
         
         # Load labor
         self.all_labor = get_all_labor()
@@ -194,7 +192,7 @@ class LaborSectionWidget(QWidget):
                 labor = next((l for l in self.all_labor if l["id"] == labor_id), None)
                 if labor:
                     self.add_labor(labor_id, labor["service_name"])
-            self.total_cost_input.setValue(current_total)
+            self.total_cost_input.setText(current_total)
     
     def on_labor_changed(self, index):
         """Handle labor combo box selection."""
@@ -224,8 +222,10 @@ class LaborSectionWidget(QWidget):
         
         # Create widget for the item
         item_widget = QWidget()
+        item_widget.setObjectName("laborItem")
+        item_widget.setStyleSheet("#laborItem, #laborItem * { background-color: white; } #laborItem { border-bottom: 1px solid #bdc3c7; }")
         item_layout = QHBoxLayout(item_widget)
-        item_layout.setContentsMargins(5, 5, 5, 5)
+        item_layout.setContentsMargins(10, 8, 10, 8)
         item_layout.setSpacing(10)
         
         # Label with labor name
@@ -234,14 +234,14 @@ class LaborSectionWidget(QWidget):
         item_layout.addWidget(labor_label, 1)
         
         # Remove button
-        remove_btn = QPushButton("✕")
-        remove_btn.setStyleSheet(theme.button_remove())
+        remove_btn = QPushButton("🗑️")
+        remove_btn.setStyleSheet(theme.button_icon("delete"))
         remove_btn.setFixedSize(30, 30)
-        remove_btn.clicked.connect(lambda: self.remove_labor(labor_id))
+        remove_btn.clicked.connect(lambda checked, l_id=labor_id: self.remove_labor(l_id))
         item_layout.addWidget(remove_btn)
         
         # Set the widget to the list item
-        list_item.setSizeHint(item_widget.sizeHint())
+        list_item.setSizeHint(QSize(0, 46))
         self.labor_list.setItemWidget(list_item, item_widget)
         
         # Add to selected labor
@@ -254,6 +254,9 @@ class LaborSectionWidget(QWidget):
                 self.labor_combo.removeItem(i)
                 break
         self.labor_combo.blockSignals(False)
+        
+        # Update list style based on item count
+        self.update_list_style()
         
         # Emit signal
         self.emit_labor_changed()
@@ -290,8 +293,18 @@ class LaborSectionWidget(QWidget):
                 self.labor_combo.addItem(labor["service_name"], labor["id"])
             self.labor_combo.blockSignals(False)
         
+        # Update list style based on item count
+        self.update_list_style()
+        
         # Emit signal
         self.emit_labor_changed()
+    
+    def update_list_style(self):
+        """Update list widget background based on item count."""
+        if len(self.selected_labor) > 0:
+            self.labor_list.setStyleSheet(theme.list_widget_with_items())
+        else:
+            self.labor_list.setStyleSheet(theme.list_widget())
     
     def add_new_labor_to_database(self):
         """Open dialog to add new labor to the database."""
@@ -318,6 +331,49 @@ class LaborSectionWidget(QWidget):
                     f"Failed to add labor service: {str(e)}"
                 )
     
+    def on_cost_text_changed(self, text):
+        """Format cost input with thousand separators, allowing decimals."""
+        if self._cost_updating:
+            return
+        self._cost_updating = True
+        
+        cursor_pos = self.total_cost_input.cursorPosition()
+        old_len = len(text)
+        
+        # Split on decimal point
+        parts = text.split('.')
+        integer_part = parts[0]
+        decimal_part = parts[1] if len(parts) > 1 else None
+        
+        # Keep only digits in integer part
+        digits = ''.join(c for c in integer_part if c.isdigit())
+        
+        # Format with thousand separators
+        if digits:
+            formatted = ''
+            for i, d in enumerate(reversed(digits)):
+                if i > 0 and i % 3 == 0:
+                    formatted = ' ' + formatted
+                formatted = d + formatted
+        else:
+            formatted = ''
+        
+        # Re-add decimal part if present
+        if decimal_part is not None:
+            # Keep only digits in decimal part (max 2)
+            dec_digits = ''.join(c for c in decimal_part if c.isdigit())[:2]
+            formatted = formatted + '.' + dec_digits
+        
+        new_len = len(formatted)
+        new_cursor = cursor_pos + (new_len - old_len)
+        new_cursor = max(0, min(new_cursor, new_len))
+        
+        self.total_cost_input.setText(formatted)
+        self.total_cost_input.setCursorPosition(new_cursor)
+        
+        self._cost_updating = False
+        self.emit_labor_changed()
+    
     def emit_labor_changed(self):
         """Emit the labor_changed signal with current labor list and total cost."""
         self.labor_changed.emit(self.get_selected_labor(), self.get_total_labor_cost())
@@ -328,4 +384,8 @@ class LaborSectionWidget(QWidget):
     
     def get_total_labor_cost(self) -> float:
         """Get the total labor cost from the input field."""
-        return self.total_cost_input.value()
+        text = self.total_cost_input.text().replace(' ', '').strip()
+        try:
+            return float(text) if text else 0.0
+        except ValueError:
+            return 0.0

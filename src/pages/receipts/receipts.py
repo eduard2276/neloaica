@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QPushButton,
     QMessageBox,
+    QGroupBox,
 )
 from PySide6.QtCore import QEvent, Qt
 
@@ -17,6 +18,7 @@ from .parts_section import PartsSectionWidget
 from .labor_section import LaborSectionWidget
 from .billable_parts_section import BillablePartsSectionWidget
 from src.services import generate_receipt_excel, template_exists
+from src.database.models.cars import update_car_kilometers
 from src.styles import theme
 
 
@@ -87,6 +89,24 @@ class ReceiptsPage(QWidget):
         self.billable_parts_widget.parts_changed.connect(self.on_billable_parts_changed)
         content_layout.addWidget(self.billable_parts_widget)
         
+        # Grand Total section (Labor + Parts)
+        grand_total_group = QGroupBox("Grand Total")
+        grand_total_group.setStyleSheet(theme.groupbox() + theme.form_label())
+        grand_total_layout = QHBoxLayout()
+        grand_total_layout.setSpacing(10)
+        
+        grand_total_label = QLabel("Total (Labor + Parts):")
+        grand_total_label.setStyleSheet(theme.form_label())
+        grand_total_layout.addWidget(grand_total_label)
+        
+        self.grand_total_value = QLabel("0.00 Lei")
+        self.grand_total_value.setStyleSheet(theme.form_label())
+        grand_total_layout.addWidget(self.grand_total_value)
+        
+        grand_total_layout.addStretch()
+        grand_total_group.setLayout(grand_total_layout)
+        content_layout.addWidget(grand_total_group)
+        
         # Generate button section
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 20, 0, 0)
@@ -154,6 +174,7 @@ class ReceiptsPage(QWidget):
         self.receipt_data['labor'] = labor_ids
         self.receipt_data['total_labor_cost'] = total_cost
         self.update_receipt_data()
+        self.update_grand_total()
     
     def on_billable_parts_changed(self, parts_list: list, total_cost: float):
         """Handle billable parts list change."""
@@ -161,6 +182,30 @@ class ReceiptsPage(QWidget):
         self.receipt_data['billable_parts'] = parts_list
         self.receipt_data['total_parts_cost'] = total_cost
         self.update_receipt_data()
+        self.update_grand_total()
+    
+    def update_grand_total(self):
+        """Update the grand total label (Labor + Parts)."""
+        labor_cost = self.receipt_data.get('total_labor_cost', 0.0)
+        parts_cost = self.receipt_data.get('total_parts_cost', 0.0)
+        grand_total = labor_cost + parts_cost
+        self.grand_total_value.setText(f"{self.format_price(grand_total)} Lei")
+    
+    def format_price(self, value) -> str:
+        """Format a number with thousand separators."""
+        try:
+            num = float(value)
+        except (ValueError, TypeError):
+            return "0.00"
+        integer_part = int(num)
+        decimal_part = f"{num:.2f}".split('.')[1]
+        formatted = ''
+        int_str = str(integer_part)
+        for i, d in enumerate(reversed(int_str)):
+            if i > 0 and i % 3 == 0:
+                formatted = ' ' + formatted
+            formatted = d + formatted
+        return f"{formatted}.{decimal_part}"
     
     def update_receipt_data(self):
         """Update and log the complete receipt data object."""
@@ -190,6 +235,16 @@ class ReceiptsPage(QWidget):
             return
         
         try:
+            # Update car kilometers in database if changed
+            car_id = self.receipt_data.get('car_id')
+            kilometers = self.receipt_data.get('kilometers', '')
+            if car_id and kilometers:
+                try:
+                    km_value = int(kilometers)
+                    update_car_kilometers(car_id, km_value)
+                except ValueError:
+                    pass  # Ignore if kilometers is not a valid number
+            
             # Generate the Excel file
             output_path, warnings = generate_receipt_excel(self.receipt_data)
             

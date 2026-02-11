@@ -164,6 +164,13 @@ class CarsPage(QWidget):
         self.setup_ui()
         self.load_data()
     
+    def showEvent(self, event):
+        """Called when the page is shown. Reload data to reflect any changes."""
+        super().showEvent(event)
+        self.load_data()
+        if hasattr(self, 'search_input'):
+            self.filter_cars(self.search_input.text())
+    
     def setup_ui(self):
         """Setup the cars UI."""
         layout = QVBoxLayout(self)
@@ -208,6 +215,7 @@ class CarsPage(QWidget):
         self.cars_table.setAlternatingRowColors(True)
         self.cars_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.cars_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.cars_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.cars_table.verticalHeader().setVisible(False)
         self.cars_table.verticalHeader().setDefaultSectionSize(50)
         self.cars_table.setColumnCount(7)
@@ -260,6 +268,7 @@ class CarsPage(QWidget):
             
             # Actions column with Edit and Delete buttons
             actions_widget = QWidget()
+            actions_widget.setStyleSheet("background-color: transparent;")
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(5, 0, 2, 0)
             actions_layout.setSpacing(5)

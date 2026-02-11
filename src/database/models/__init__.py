@@ -21,6 +21,7 @@ from .cars import (
     get_car_by_id,
     add_car,
     update_car,
+    update_car_kilometers,
     delete_car,
     get_cars_count,
 )
@@ -86,6 +87,7 @@ __all__ = [
     "get_car_by_id",
     "add_car",
     "update_car",
+    "update_car_kilometers",
     "delete_car",
     "get_cars_count",
     # Labor functions

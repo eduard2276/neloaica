@@ -47,6 +47,11 @@ class DashboardPage(QWidget):
         self.setup_ui()
         self.load_data()
     
+    def showEvent(self, event):
+        """Called when the page is shown. Reload data to reflect any changes."""
+        super().showEvent(event)
+        self.load_data()
+    
     def setup_ui(self):
         """Setup the dashboard UI."""
         layout = QVBoxLayout(self)
