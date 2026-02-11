@@ -1,5 +1,5 @@
 """Custom widgets module."""
 
-from .combo_box import NoScrollComboBox
+from .combo_box import NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox
 
-__all__ = ['NoScrollComboBox']
+__all__ = ['NoScrollComboBox', 'NoScrollDoubleSpinBox', 'NoScrollSpinBox']

@@ -9,7 +9,7 @@ def create_settings_table():
     db.execute("""
         CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY CHECK (id = 1),
-            tva REAL NOT NULL DEFAULT 19.0
+            tva REAL NOT NULL DEFAULT 21.0
         )
     """)
     db.commit()
@@ -17,7 +17,7 @@ def create_settings_table():
     # Insert default settings if not exists
     existing = db.fetchone("SELECT COUNT(*) as count FROM settings WHERE id = 1")
     if existing and existing["count"] == 0:
-        db.execute("INSERT INTO settings (id, tva) VALUES (1, 19.0)")
+        db.execute("INSERT INTO settings (id, tva) VALUES (1, 21.0)")
         db.commit()
 
 

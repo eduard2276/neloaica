@@ -54,10 +54,10 @@ class ThemeManager:
                 background-color: {self._colors['bg_primary']};
                 border: 2px solid {self._colors['border']};
                 border-radius: 6px;
-                padding: 8px 12px;
+                padding: 8px;
                 font-size: 14px;
                 color: {self._colors['text_primary']};
-                min-height: 30px;
+                min-height: 20px;
             }}
             QComboBox:disabled {{
                 background-color: {self._colors['bg_secondary']};
@@ -151,10 +151,10 @@ class ThemeManager:
         """
     
     def list_widget(self) -> str:
-        """Style for list widgets."""
+        """Style for list widgets (empty state - grey background)."""
         return f"""
             QListWidget {{
-                background-color: {self._colors['bg_tertiary']};
+                background-color: #e0e0e0;
                 border: 2px solid {self._colors['border']};
                 border-radius: 6px;
                 padding: 5px;
@@ -162,10 +162,29 @@ class ThemeManager:
             }}
             QListWidget::item {{
                 padding: 5px;
-                border-bottom: 1px solid {self._colors['bg_secondary']};
+                background-color: transparent;
             }}
             QListWidget::item:hover {{
-                background-color: {self._colors['bg_secondary']};
+                background-color: transparent;
+            }}
+        """
+    
+    def list_widget_with_items(self) -> str:
+        """Style for list widgets with items (white background, grey border)."""
+        return f"""
+            QListWidget {{
+                background-color: {self._colors['bg_primary']};
+                border: 2px solid #bdc3c7;
+                border-radius: 6px;
+                padding: 0px;
+                min-height: 150px;
+            }}
+            QListWidget::item {{
+                padding: 0px;
+                background-color: transparent;
+            }}
+            QListWidget::item:hover {{
+                background-color: transparent;
             }}
         """
     
@@ -181,12 +200,23 @@ class ThemeManager:
                 font-size: 14px;
             }}
             QTableWidget::item {{
-                padding: 10px;
                 color: {self._colors['text_primary']};
+                border: none;
+                outline: none;
+            }}
+            QTableWidget::item:hover {{
+                background-color: transparent;
+                border: none;
             }}
             QTableWidget::item:selected {{
-                background-color: {self._colors['table_selection']};
-                color: {self._colors['text_light']};
+                background-color: #d0d0d0;
+                color: {self._colors['text_primary']};
+                border: none;
+                outline: none;
+            }}
+            QTableWidget::item:focus {{
+                border: none;
+                outline: none;
             }}
             QHeaderView::section {{
                 background-color: {self._colors['table_header']};
@@ -300,7 +330,7 @@ class ThemeManager:
         """
     
     def message_box_confirm(self) -> str:
-        """Style for confirmation message boxes."""
+        """Style for confirmation message boxes - dark theme with white text."""
         return f"""
             QMessageBox {{
                 background-color: {self._colors['sidebar_bg']};
@@ -309,17 +339,22 @@ class ThemeManager:
                 color: {self._colors['text_light']};
                 font-size: 14px;
                 padding: 10px;
+                background-color: {self._colors['sidebar_bg']};
             }}
-            QMessageBox QPushButton {{
-                background-color: {self._colors['primary']};
+            QPushButton {{
+                background-color: {self._colors['sidebar_bg']};
                 color: {self._colors['text_light']};
                 border: none;
-                border-radius: 4px;
+                border-radius: 6px;
                 padding: 8px 20px;
+                font-size: 13px;
                 font-weight: bold;
                 min-width: 80px;
             }}
-            QMessageBox QPushButton:hover {{
+            QPushButton:hover {{
+                background-color: {self._colors['primary']};
+            }}
+            QPushButton:pressed {{
                 background-color: {self._colors['primary_hover']};
             }}
         """
@@ -380,4 +415,33 @@ class ThemeManager:
         return f"""
             color: {self._colors['text_primary']};
             font-size: 14px;
+        """
+    
+    def form_label(self) -> str:
+        """Style for form labels - white background with dark bold blue text."""
+        return f"""
+            QLabel {{
+                background-color: {self._colors['bg_primary']};
+                color: #1a3a6e;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 8px 12px;
+                border-radius: 4px;
+            }}
+        """
+    
+    def line_edit_readonly(self) -> str:
+        """Style for read-only line edit inputs with grey background."""
+        return f"""
+            QLineEdit {{
+                padding: 8px;
+                border: 2px solid {self._colors['border']};
+                border-radius: 6px;
+                background-color: #e0e0e0;
+                color: {self._colors['text_secondary']};
+                font-size: 14px;
+            }}
+            QLineEdit:focus {{
+                border-color: {self._colors['border']};
+            }}
         """

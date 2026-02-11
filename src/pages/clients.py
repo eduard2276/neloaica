@@ -122,6 +122,12 @@ class ClientsPage(QWidget):
         self.setup_ui()
         self.load_data()
     
+    def showEvent(self, event):
+        """Called when the page is shown. Reload data to reflect any changes."""
+        super().showEvent(event)
+        self.load_data()
+        self.filter_clients(self.search_input.text())
+    
     def setup_ui(self):
         """Setup the clients UI."""
         layout = QVBoxLayout(self)
@@ -166,6 +172,7 @@ class ClientsPage(QWidget):
         self.clients_table.setAlternatingRowColors(True)
         self.clients_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.clients_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.clients_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.clients_table.verticalHeader().setVisible(False)
         self.clients_table.verticalHeader().setDefaultSectionSize(50)
         self.clients_table.setColumnCount(5)
@@ -212,6 +219,7 @@ class ClientsPage(QWidget):
             
             # Actions column with Edit and Delete buttons
             actions_widget = QWidget()
+            actions_widget.setStyleSheet("background-color: transparent;")
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(5, 0, 2, 0)
             actions_layout.setSpacing(5)

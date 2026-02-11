@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QDialog,
     QMessageBox,
+    QFrame,
 )
 from PySide6.QtCore import Qt, Signal
 
@@ -140,6 +141,7 @@ class DefectsSectionWidget(QWidget):
         self.defects_list = QListWidget()
         self.defects_list.setStyleSheet(theme.list_widget())
         self.defects_list.setMinimumHeight(150)
+        self.update_list_style()  # Set initial style
         
         defects_layout.addWidget(self.defects_list)
         
@@ -186,9 +188,10 @@ class DefectsSectionWidget(QWidget):
         if defect:
             # Create list item with delete button
             item_widget = QWidget()
-            item_widget.setStyleSheet("background-color: white;")
+            item_widget.setObjectName("defectItem")
+            item_widget.setStyleSheet("#defectItem, #defectItem * { background-color: white; } #defectItem { border-bottom: 1px solid #bdc3c7; }")
             item_layout = QHBoxLayout(item_widget)
-            item_layout.setContentsMargins(5, 2, 5, 2)
+            item_layout.setContentsMargins(10, 8, 10, 8)
             
             # Defect label
             defect_label = QLabel(defect['defect_name'])
@@ -206,7 +209,8 @@ class DefectsSectionWidget(QWidget):
             
             # Add to list widget
             list_item = QListWidgetItem(self.defects_list)
-            list_item.setSizeHint(item_widget.sizeHint())
+            from PySide6.QtCore import QSize
+            list_item.setSizeHint(QSize(0, 46))
             list_item.setData(Qt.ItemDataRole.UserRole, defect_id)
             self.defects_list.addItem(list_item)
             self.defects_list.setItemWidget(list_item, item_widget)
@@ -217,6 +221,9 @@ class DefectsSectionWidget(QWidget):
         self.defect_combo.removeItem(current_index)
         self.defect_combo.setCurrentIndex(0)
         self.defect_combo.blockSignals(False)
+        
+        # Update list style based on item count
+        self.update_list_style()
         
         # Emit signal
         self.defects_changed.emit(self.selected_defects.copy())
@@ -240,6 +247,9 @@ class DefectsSectionWidget(QWidget):
             self.defect_combo.blockSignals(True)
             self.defect_combo.addItem(defect['defect_name'], defect['id'])
             self.defect_combo.blockSignals(False)
+        
+        # Update list style based on item count
+        self.update_list_style()
         
         # Emit signal
         self.defects_changed.emit(self.selected_defects.copy())
@@ -275,6 +285,15 @@ class DefectsSectionWidget(QWidget):
                     "Error",
                     f"Failed to add defect: {str(e)}"
                 )
+    
+    def update_list_style(self):
+        """Update list widget background based on item count."""
+        if len(self.selected_defects) > 0:
+            # White background when items are present
+            self.defects_list.setStyleSheet(theme.list_widget_with_items())
+        else:
+            # Grey background when empty
+            self.defects_list.setStyleSheet(theme.list_widget())
     
     def get_selected_defects(self) -> list:
         """Get list of selected defect IDs."""

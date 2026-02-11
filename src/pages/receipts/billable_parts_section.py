@@ -16,10 +16,10 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QDoubleSpinBox,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QSize
 
 from src.database.models.parts import get_all_parts, add_part as add_part_to_db
-from src.widgets import NoScrollComboBox
+from src.widgets import NoScrollComboBox, NoScrollSpinBox
 from src.styles import theme
 
 
@@ -140,6 +140,7 @@ class BillablePartsSectionWidget(QWidget):
         self.parts_list = QListWidget()
         self.parts_list.setStyleSheet(theme.list_widget())
         self.parts_list.setMinimumHeight(150)
+        self.update_list_style()
         parts_layout.addWidget(self.parts_list)
         
         # Total parts cost section
@@ -147,14 +148,14 @@ class BillablePartsSectionWidget(QWidget):
         total_layout.setSpacing(10)
         
         total_label = QLabel("Total Parts Cost:")
-        total_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #2c3e50;")
+        total_label.setStyleSheet(theme.form_label())
         total_layout.addWidget(total_label)
         
-        total_layout.addStretch()
-        
-        self.total_cost_label = QLabel("$0.00")
-        self.total_cost_label.setStyleSheet("font-weight: bold; font-size: 16px; color: #27ae60;")
+        self.total_cost_label = QLabel("0.00 Lei")
+        self.total_cost_label.setStyleSheet(theme.form_label())
         total_layout.addWidget(self.total_cost_label)
+        
+        total_layout.addStretch()
         
         parts_layout.addLayout(total_layout)
         
@@ -225,60 +226,74 @@ class BillablePartsSectionWidget(QWidget):
         
         # Create widget for the item
         item_widget = QWidget()
-        item_widget.setProperty("part_id", part_id)  # Store part_id for later identification
+        item_widget.setObjectName("billablePartItem")
+        item_widget.setStyleSheet("#billablePartItem, #billablePartItem * { background-color: white; } #billablePartItem { border-bottom: 1px solid #bdc3c7; }")
+        item_widget.setProperty("part_id", part_id)
         item_layout = QHBoxLayout(item_widget)
-        item_layout.setContentsMargins(5, 5, 5, 5)
+        item_layout.setContentsMargins(10, 8, 10, 8)
         item_layout.setSpacing(10)
         
-        # Label with part name
+        # Part name - far left
         part_label = QLabel(part_name)
         part_label.setStyleSheet(theme.label_item())
-        part_label.setMinimumWidth(150)
-        item_layout.addWidget(part_label)
+        item_layout.addWidget(part_label, 2)
         
-        # Units input
+        # Units section
+        units_group = QWidget()
+        units_group.setStyleSheet("background-color: white;")
+        units_group_layout = QHBoxLayout(units_group)
+        units_group_layout.setContentsMargins(0, 0, 0, 0)
+        units_group_layout.setSpacing(5)
         units_label = QLabel("Units:")
-        units_label.setStyleSheet("font-size: 12px; color: #2c3e50;")
-        item_layout.addWidget(units_label)
-        
-        units_input = QSpinBox()
+        units_label.setStyleSheet(theme.form_label())
+        units_group_layout.addWidget(units_label)
+        units_input = NoScrollSpinBox()
         units_input.setRange(1, 9999)
         units_input.setValue(units)
-        units_input.setMinimumWidth(80)
-        units_input.setStyleSheet(theme.line_edit())
+        units_input.setFixedWidth(50)
+        units_input.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        units_input.setStyleSheet(theme.line_edit().replace("QLineEdit", "QSpinBox"))
         units_input.valueChanged.connect(lambda val: self.update_part_units(part_id, val))
-        item_layout.addWidget(units_input)
+        units_group_layout.addWidget(units_input)
+        units_group_layout.addStretch()
+        item_layout.addWidget(units_group, 2)
         
-        # Price per unit input
+        # Price/Unit section
+        price_group = QWidget()
+        price_group.setStyleSheet("background-color: white;")
+        price_group_layout = QHBoxLayout(price_group)
+        price_group_layout.setContentsMargins(0, 0, 0, 0)
+        price_group_layout.setSpacing(5)
         price_label = QLabel("Price/Unit:")
-        price_label.setStyleSheet("font-size: 12px; color: #2c3e50;")
-        item_layout.addWidget(price_label)
-        
-        price_input = QDoubleSpinBox()
-        price_input.setPrefix("$")
-        price_input.setDecimals(2)
-        price_input.setRange(0.0, 999999.99)
-        price_input.setValue(price_per_unit)
-        price_input.setMinimumWidth(100)
+        price_label.setStyleSheet(theme.form_label())
+        price_group_layout.addWidget(price_label)
+        price_input = QLineEdit()
+        price_input.setPlaceholderText("e.g. 150 Lei")
+        price_input.setFixedWidth(100)
         price_input.setStyleSheet(theme.line_edit())
-        price_input.valueChanged.connect(lambda val: self.update_part_price(part_id, val))
-        item_layout.addWidget(price_input)
+        if price_per_unit > 0:
+            price_input.setText(self.format_price(price_per_unit))
+        price_input.setProperty("part_id", part_id)
+        price_input.textChanged.connect(lambda text, p_id=part_id, inp=price_input: self.on_price_text_changed(p_id, text, inp))
+        price_group_layout.addWidget(price_input)
+        price_group_layout.addStretch()
+        item_layout.addWidget(price_group, 2)
         
-        # Subtotal label
-        subtotal_label = QLabel(f"${units * price_per_unit:.2f}")
-        subtotal_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #27ae60; min-width: 80px;")
-        subtotal_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-        item_layout.addWidget(subtotal_label)
+        # Total section
+        subtotal = units * price_per_unit
+        subtotal_label = QLabel(f"{self.format_price(subtotal)} Lei" if subtotal > 0 else "0.00 Lei")
+        subtotal_label.setStyleSheet(theme.form_label())
+        item_layout.addWidget(subtotal_label, 2)
         
-        # Remove button
-        remove_btn = QPushButton("✕")
-        remove_btn.setStyleSheet(theme.button_remove())
+        # Remove button - far right
+        remove_btn = QPushButton("🗑️")
+        remove_btn.setStyleSheet(theme.button_icon("delete"))
         remove_btn.setFixedSize(30, 30)
-        remove_btn.clicked.connect(lambda: self.remove_part(part_id))
+        remove_btn.clicked.connect(lambda checked, p_id=part_id: self.remove_part(p_id))
         item_layout.addWidget(remove_btn)
         
         # Set the widget to the list item
-        list_item.setSizeHint(item_widget.sizeHint())
+        list_item.setSizeHint(QSize(0, 50))
         self.parts_list.setItemWidget(list_item, item_widget)
         
         # Add to selected parts
@@ -296,6 +311,9 @@ class BillablePartsSectionWidget(QWidget):
                 self.part_combo.removeItem(i)
                 break
         self.part_combo.blockSignals(False)
+        
+        # Update list style
+        self.update_list_style()
         
         # Emit signal
         self.emit_parts_changed()
@@ -341,12 +359,12 @@ class BillablePartsSectionWidget(QWidget):
             item = self.parts_list.item(i)
             item_widget = self.parts_list.itemWidget(item)
             if item_widget and item_widget.property("part_id") == part_id:
-                # Get the layout and find the subtotal label (5th widget)
+                # Get the layout and find the subtotal label (index 3: name, units_group, price_group, subtotal, delete)
                 layout = item_widget.layout()
-                if layout and layout.count() > 5:
-                    subtotal_label = layout.itemAt(5).widget()
+                if layout and layout.count() > 3:
+                    subtotal_label = layout.itemAt(3).widget()
                     if isinstance(subtotal_label, QLabel):
-                        subtotal_label.setText(f"${subtotal:.2f}")
+                        subtotal_label.setText(f"{self.format_price(subtotal)} Lei")
                         break
     
     def remove_part(self, part_id: int):
@@ -386,6 +404,9 @@ class BillablePartsSectionWidget(QWidget):
                 self.part_combo.addItem(part["part_name"], part["id"])
             self.part_combo.blockSignals(False)
         
+        # Update list style
+        self.update_list_style()
+        
         # Emit signal
         self.emit_parts_changed()
     
@@ -414,6 +435,93 @@ class BillablePartsSectionWidget(QWidget):
                     f"Failed to add part: {str(e)}"
                 )
     
+    def update_list_style(self):
+        """Update list widget background based on item count."""
+        if len(self.selected_parts) > 0:
+            self.parts_list.setStyleSheet(theme.list_widget_with_items())
+        else:
+            self.parts_list.setStyleSheet(theme.list_widget())
+    
+    def format_price(self, value) -> str:
+        """Format a number with thousand separators."""
+        try:
+            num = float(value)
+        except (ValueError, TypeError):
+            return "0.00"
+        
+        # Split integer and decimal
+        integer_part = int(num)
+        decimal_part = f"{num:.2f}".split('.')[1]
+        
+        # Format integer with thousand separators
+        formatted = ''
+        int_str = str(integer_part)
+        for i, d in enumerate(reversed(int_str)):
+            if i > 0 and i % 3 == 0:
+                formatted = ' ' + formatted
+            formatted = d + formatted
+        
+        return f"{formatted}.{decimal_part}"
+    
+    def parse_price(self, text: str) -> float:
+        """Parse a formatted price string to float."""
+        cleaned = text.replace(' ', '').strip()
+        try:
+            return float(cleaned) if cleaned else 0.0
+        except ValueError:
+            return 0.0
+    
+    def on_price_text_changed(self, part_id: int, text: str, price_input: QLineEdit):
+        """Format price input and update part price."""
+        if getattr(self, '_price_updating', False):
+            return
+        self._price_updating = True
+        
+        cursor_pos = price_input.cursorPosition()
+        old_len = len(text)
+        
+        # Split on decimal point
+        parts = text.split('.')
+        integer_part = parts[0]
+        decimal_part = parts[1] if len(parts) > 1 else None
+        
+        # Keep only digits in integer part
+        digits = ''.join(c for c in integer_part if c.isdigit())
+        
+        # Format with thousand separators
+        if digits:
+            formatted = ''
+            for i, d in enumerate(reversed(digits)):
+                if i > 0 and i % 3 == 0:
+                    formatted = ' ' + formatted
+                formatted = d + formatted
+        else:
+            formatted = ''
+        
+        # Re-add decimal part if present
+        if decimal_part is not None:
+            dec_digits = ''.join(c for c in decimal_part if c.isdigit())[:2]
+            formatted = formatted + '.' + dec_digits
+        
+        new_len = len(formatted)
+        new_cursor = cursor_pos + (new_len - old_len)
+        new_cursor = max(0, min(new_cursor, new_len))
+        
+        price_input.setText(formatted)
+        price_input.setCursorPosition(new_cursor)
+        
+        # Update price in selected_parts
+        price_value = self.parse_price(formatted)
+        for part_item in self.selected_parts:
+            if part_item["part_id"] == part_id:
+                part_item["price_per_unit"] = price_value
+                break
+        
+        self.update_subtotal_label(part_id)
+        
+        self._price_updating = False
+        self.emit_parts_changed()
+    
     def emit_parts_changed(self):
         """Emit the parts_changed signal with current parts list and total cost."""
         self.parts_changed.emit(self.get_selected_parts(), self.get_total_parts_cost())
@@ -430,4 +538,4 @@ class BillablePartsSectionWidget(QWidget):
     def update_total_cost_label(self):
         """Update the total cost label."""
         total = self.get_total_parts_cost()
-        self.total_cost_label.setText(f"${total:.2f}")
+        self.total_cost_label.setText(f"{self.format_price(total)} Lei")

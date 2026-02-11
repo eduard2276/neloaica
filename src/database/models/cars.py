@@ -108,3 +108,13 @@ def get_cars_count() -> int:
     db = DatabaseConnection()
     result = db.fetchone("SELECT COUNT(*) as count FROM cars")
     return result["count"] if result else 0
+
+
+def update_car_kilometers(car_id: int, kilometers: int):
+    """Update only the kilometers for a car."""
+    db = DatabaseConnection()
+    db.execute(
+        "UPDATE cars SET kilometers = ? WHERE id = ?",
+        (kilometers, car_id)
+    )
+    db.commit()

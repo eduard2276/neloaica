@@ -226,6 +226,19 @@ def generate_receipt_excel(receipt_data: dict) -> str:
         total_parts_tva = (total_parts_cost * tva_percentage) / (100 + tva_percentage)
         sheet[f'F{total_parts_row}'] = total_parts_tva
     
+    # Grand total row (Total Labor + Total Parts) at the next row after total parts
+    grand_total = total_labor_cost + total_parts_cost
+    if billable_parts:
+        grand_total_row = total_parts_row + 1
+    elif labor_ids:
+        grand_total_row = 36 + len(labor_ids) + 1
+    else:
+        grand_total_row = 42
+    
+    tva_percentage = get_tva()
+    grand_total_tva = (grand_total * tva_percentage) / (100 + tva_percentage)
+    sheet[f'F{grand_total_row}'] = grand_total
+    
     # Save the workbook
     workbook.save(output_path)
     workbook.close()

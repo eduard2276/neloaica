@@ -116,6 +116,11 @@ class PartsPage(QWidget):
         self.setup_ui()
         self.load_data()
 
+    def showEvent(self, event):
+        """Called when the page is shown. Reload data to reflect any changes."""
+        super().showEvent(event)
+        self.load_data()
+
     def setup_ui(self):
         """Set up the page UI."""
         layout = QVBoxLayout(self)
@@ -160,6 +165,7 @@ class PartsPage(QWidget):
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
         self.table.verticalHeader().setDefaultSectionSize(50)
         self.table.setColumnCount(3)
@@ -187,6 +193,7 @@ class PartsPage(QWidget):
             
             # Actions column with Edit and Delete buttons
             actions_widget = QWidget()
+            actions_widget.setStyleSheet("background-color: transparent;")
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(5, 0, 2, 0)
             actions_layout.setSpacing(5)

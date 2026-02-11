@@ -7,8 +7,9 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QGroupBox,
+    QDateEdit,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QDate
 
 from src.database.models import (
     get_all_clients,
@@ -40,13 +41,13 @@ class ReceiptInfoWidget(QWidget):
         layout.setSpacing(0)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        # Form container
+        # Form container with combined styling for group and labels
         form_group = QGroupBox("Receipt Information")
-        form_group.setStyleSheet(theme.groupbox())
+        form_group.setStyleSheet(theme.groupbox() + theme.form_label())
         
         form_layout = QFormLayout()
         form_layout.setSpacing(15)
-        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         
         # Client dropdown
         self.client_combo = NoScrollComboBox()
@@ -77,21 +78,49 @@ class ReceiptInfoWidget(QWidget):
         self.model_input.setPlaceholderText("Model")
         
         self.km_input = QLineEdit()
-        self.km_input.setPlaceholderText("Kilometers")
-        self.km_input.textChanged.connect(self.on_km_changed)
+        self.km_input.setPlaceholderText("e.g. 120 000")
+        self.km_input.textChanged.connect(self.on_km_text_changed)
+        self._km_updating = False  # Flag to prevent recursive updates
         
-        # Styling for inputs
-        input_style = theme.line_edit()
+        # Styling for inputs - read-only fields get grey background
+        readonly_style = theme.line_edit_readonly()
+        editable_style = theme.line_edit()
         
-        self.plate_input.setStyleSheet(input_style)
-        self.vin_input.setStyleSheet(input_style)
-        self.model_input.setStyleSheet(input_style)
-        self.km_input.setStyleSheet(input_style)
+        self.plate_input.setStyleSheet(readonly_style)
+        self.vin_input.setStyleSheet(readonly_style)
+        self.model_input.setStyleSheet(readonly_style)
+        self.km_input.setStyleSheet(editable_style)
+        
+        # Date picker
+        self.date_input = QDateEdit()
+        self.date_input.setCalendarPopup(True)
+        self.date_input.setDate(QDate.currentDate())
+        self.date_input.setDisplayFormat("dd.MM.yyyy")
+        self.date_input.setMaximumWidth(200)
+        self.date_input.setStyleSheet(f"""
+            QDateEdit {{
+                padding: 8px;
+                border: 2px solid {theme._colors['border']};
+                border-radius: 6px;
+                background-color: {theme._colors['bg_primary']};
+                color: {theme._colors['text_primary']};
+                font-size: 14px;
+            }}
+            QDateEdit:focus {{
+                border-color: {theme._colors['border_focus']};
+            }}
+            QDateEdit::drop-down {{
+                border: none;
+                padding-right: 10px;
+            }}
+        """)
+        self.date_input.dateChanged.connect(lambda: self.emit_data_changed())
         
         form_layout.addRow("Plate Number:", self.plate_input)
         form_layout.addRow("VIN:", self.vin_input)
         form_layout.addRow("Model:", self.model_input)
         form_layout.addRow("Kilometers:", self.km_input)
+        form_layout.addRow("Date:", self.date_input)
         
         form_group.setLayout(form_layout)
         layout.addWidget(form_group)
@@ -103,6 +132,9 @@ class ReceiptInfoWidget(QWidget):
         
         self.all_clients = get_all_clients()
         self.all_cars = get_all_cars()
+        
+        # Sort clients alphabetically by first name, then last name
+        self.all_clients.sort(key=lambda c: (c['first_name'].lower(), c['last_name'].lower()))
         
         self.client_combo.blockSignals(True)
         
@@ -193,13 +225,67 @@ class ReceiptInfoWidget(QWidget):
             self.plate_input.setText(selected_car['plate_number'])
             self.vin_input.setText(selected_car['vin'])
             self.model_input.setText(selected_car['model'])
-            self.km_input.setText(str(selected_car.get('kilometers', 0)))
+            # Format kilometers with thousand separators
+            km_value = selected_car.get('kilometers', 0)
+            self.km_input.setText(self.format_kilometers(km_value))
         
         self.emit_data_changed()
     
-    def on_km_changed(self):
-        """Handle kilometers input change."""
+    def on_km_text_changed(self, text):
+        """Handle kilometers input change with formatting."""
+        if self._km_updating:
+            return
+        
+        self._km_updating = True
+        
+        # Get cursor position before formatting
+        cursor_pos = self.km_input.cursorPosition()
+        old_text = text
+        
+        # Remove all non-digit characters
+        digits_only = ''.join(c for c in text if c.isdigit())
+        
+        # Format with thousand separators
+        if digits_only:
+            formatted = self.format_kilometers(int(digits_only))
+        else:
+            formatted = ""
+        
+        # Calculate new cursor position
+        # Count how many digits were before the cursor in old text
+        digits_before_cursor = sum(1 for c in old_text[:cursor_pos] if c.isdigit())
+        
+        # Find where to place cursor in new formatted text
+        new_cursor_pos = 0
+        digit_count = 0
+        for i, c in enumerate(formatted):
+            if digit_count >= digits_before_cursor:
+                break
+            if c.isdigit():
+                digit_count += 1
+            new_cursor_pos = i + 1
+        
+        # Update the text
+        self.km_input.setText(formatted)
+        self.km_input.setCursorPosition(new_cursor_pos)
+        
+        self._km_updating = False
         self.emit_data_changed()
+    
+    def format_kilometers(self, value) -> str:
+        """Format a number with thousand separators (spaces)."""
+        try:
+            num = int(value)
+            # Format with spaces as thousand separators
+            formatted = f"{num:,}".replace(",", " ")
+            return formatted
+        except (ValueError, TypeError):
+            return str(value) if value else ""
+    
+    def parse_kilometers(self, text: str) -> str:
+        """Parse formatted kilometers text to raw number string."""
+        # Remove all spaces and non-digit characters
+        return ''.join(c for c in text if c.isdigit())
     
     def clear_car_details(self):
         """Clear all car detail inputs."""
@@ -229,7 +315,8 @@ class ReceiptInfoWidget(QWidget):
             'plate_number': self.plate_input.text(),
             'vin': self.vin_input.text(),
             'model': self.model_input.text(),
-            'kilometers': self.km_input.text(),
+            'kilometers': self.parse_kilometers(self.km_input.text()),
+            'date': self.date_input.date().toString("dd.MM.yyyy"),
         }
     
     def emit_data_changed(self):
