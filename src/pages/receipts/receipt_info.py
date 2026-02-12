@@ -302,6 +302,8 @@ class ReceiptInfoWidget(QWidget):
     def show_calendar(self):
         """Show a calendar popup to pick a date."""
         from PySide6.QtWidgets import QDialog, QVBoxLayout as QVBox
+        from PySide6.QtCore import QTimer
+        from PySide6.QtGui import QTextCharFormat, QColor
         
         dialog = QDialog(self)
         dialog.setWindowTitle("Select Date")
@@ -354,40 +356,81 @@ class ReceiptInfoWidget(QWidget):
         # Hide week numbers
         calendar.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
         
-        # Keep Sundays red
-        from PySide6.QtGui import QTextCharFormat, QColor
+        # Keep Sundays red for current-month dates (per-date format overrides this
+        # for other-month Sundays)
         sunday_format = QTextCharFormat()
         sunday_format.setForeground(QColor("red"))
         calendar.setWeekdayTextFormat(Qt.DayOfWeek.Sunday, sunday_format)
         
-        # Grey out dates from other months
+        # Grey styling for dates outside the displayed month
         other_month_format = QTextCharFormat()
-        other_month_format.setForeground(QColor("#b0b0b0"))
+        other_month_format.setForeground(QColor("#c8c8c8"))
+        other_month_format.setBackground(QColor("#f5f5f5"))
+        
+        # State for tracking page changes vs date clicks.
+        # When a user clicks a date from another month, Qt fires
+        # currentPageChanged BEFORE clicked. We use this flag to detect
+        # that scenario and revert the navigation.
+        _page_changed = [False]
+        _restore_page = [calendar.yearShown(), calendar.monthShown()]
         
         def update_other_month_dates():
+            """Apply grey format to dates not belonging to the displayed month."""
             current_month = calendar.monthShown()
             current_year = calendar.yearShown()
             first_day = QDate(current_year, current_month, 1)
-            first_visible = first_day.addDays(-(first_day.dayOfWeek() % 7))
-            for i in range(42):
-                d = first_visible.addDays(i)
-                if d.month() != current_month:
+            # Iterate from 7 days before the 1st through 49 days after to
+            # guarantee all 42 visible grid cells are covered regardless of
+            # which day the week starts on.
+            for i in range(-7, 49):
+                d = first_day.addDays(i)
+                if d.month() != current_month or d.year() != current_year:
                     calendar.setDateTextFormat(d, other_month_format)
                 else:
+                    # Reset to default so weekday formats (e.g. red Sunday) apply
                     calendar.setDateTextFormat(d, QTextCharFormat())
         
-        update_other_month_dates()
-        calendar.currentPageChanged.connect(lambda year, month: update_other_month_dates())
-        
-        layout.addWidget(calendar)
+        def on_page_changed(year, month):
+            """Handle month/year page navigation."""
+            _page_changed[0] = True
+            update_other_month_dates()
+            
+            def after_event_loop():
+                """Runs on the next event-loop iteration.
+                
+                If the flag is still set, no clicked() signal followed the
+                page change, meaning the user used the navigation buttons.
+                Update the restore point so the next other-month click can
+                revert to this page.
+                """
+                if _page_changed[0]:
+                    _restore_page[0] = calendar.yearShown()
+                    _restore_page[1] = calendar.monthShown()
+                    _page_changed[0] = False
+            
+            QTimer.singleShot(0, after_event_loop)
         
         def on_date_clicked(date):
+            """Handle date selection, rejecting other-month dates."""
+            if _page_changed[0]:
+                # A page change fired right before this click, which means
+                # the user clicked a date belonging to the previous/next
+                # month. Revert to the page they were viewing.
+                _page_changed[0] = False
+                calendar.setCurrentPage(_restore_page[0], _restore_page[1])
+                return
+            
+            # Valid same-month date — accept it
             self._selected_date = date
             self.date_display.setText(date.toString("dd.MM.yyyy"))
             self.emit_data_changed()
             dialog.accept()
         
+        update_other_month_dates()
+        calendar.currentPageChanged.connect(on_page_changed)
         calendar.clicked.connect(on_date_clicked)
+        
+        layout.addWidget(calendar)
         dialog.exec()
     
     def clear_car_details(self):

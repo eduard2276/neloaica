@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-from src.database.models import get_tva, update_tva
+from src.database.models import get_tva, update_tva, get_receipt_number, update_receipt_number
 from src.styles.theme_manager import ThemeManager
 
 
@@ -32,26 +32,34 @@ class SettingsPage(QWidget):
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(title)
         
-        # TVA Settings Group - styled like Receipt Information
-        tva_group = QGroupBox("TVA (VAT) Settings")
-        tva_group.setStyleSheet(self.theme.groupbox() + self.theme.form_label())
+        # Settings Group - single group for all settings
+        settings_group = QGroupBox("Application Settings")
+        settings_group.setStyleSheet(self.theme.groupbox() + self.theme.form_label())
         
-        tva_layout = QFormLayout()
-        tva_layout.setSpacing(15)
-        tva_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        settings_form = QFormLayout()
+        settings_form.setSpacing(15)
+        settings_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         
-        # TVA input as QLineEdit with placeholder
+        # TVA input
         self.tva_input = QLineEdit()
         self.tva_input.setPlaceholderText("e.g. 21.00")
         self.tva_input.setStyleSheet(self.theme.line_edit())
         self.tva_input.setMaximumWidth(200)
         self._tva_updating = False
         self.tva_input.textChanged.connect(self.on_tva_text_changed)
+        settings_form.addRow("TVA (%):", self.tva_input)
         
-        tva_layout.addRow("TVA (%):", self.tva_input)
+        # Receipt Number input
+        self.receipt_number_input = QLineEdit()
+        self.receipt_number_input.setPlaceholderText("e.g. 1")
+        self.receipt_number_input.setStyleSheet(self.theme.line_edit())
+        self.receipt_number_input.setMaximumWidth(200)
+        self._receipt_number_updating = False
+        self.receipt_number_input.textChanged.connect(self.on_receipt_number_text_changed)
+        settings_form.addRow("Receipt Number:", self.receipt_number_input)
         
-        tva_group.setLayout(tva_layout)
-        layout.addWidget(tva_group)
+        settings_group.setLayout(settings_form)
+        layout.addWidget(settings_group)
         
         # Buttons row
         buttons_layout = QHBoxLayout()
@@ -95,11 +103,14 @@ class SettingsPage(QWidget):
     def set_editing(self, editing: bool):
         """Toggle between editing and read-only mode."""
         self.tva_input.setReadOnly(not editing)
+        self.receipt_number_input.setReadOnly(not editing)
         
         if editing:
             self.tva_input.setStyleSheet(self.theme.line_edit())
+            self.receipt_number_input.setStyleSheet(self.theme.line_edit())
         else:
             self.tva_input.setStyleSheet(self.theme.line_edit_readonly())
+            self.receipt_number_input.setStyleSheet(self.theme.line_edit_readonly())
         
         # Show/hide buttons
         self.edit_button.setVisible(not editing)
@@ -143,6 +154,26 @@ class SettingsPage(QWidget):
         
         self._tva_updating = False
     
+    def on_receipt_number_text_changed(self, text):
+        """Validate receipt number input to only allow positive integers."""
+        if self._receipt_number_updating:
+            return
+        self._receipt_number_updating = True
+        
+        cursor_pos = self.receipt_number_input.cursorPosition()
+        
+        # Keep only digits
+        digits = ''.join(c for c in text if c.isdigit())
+        
+        # Remove leading zeros (but keep at least "0" if that's all there is)
+        if len(digits) > 1:
+            digits = digits.lstrip('0') or '0'
+        
+        self.receipt_number_input.setText(digits)
+        self.receipt_number_input.setCursorPosition(min(cursor_pos, len(digits)))
+        
+        self._receipt_number_updating = False
+    
     def load_settings(self):
         """Load settings from database."""
         tva = get_tva()
@@ -152,12 +183,18 @@ class SettingsPage(QWidget):
         else:
             self.tva_input.setText(f"{tva:.2f}")
         self._tva_updating = False
+        
+        receipt_number = get_receipt_number()
+        self._receipt_number_updating = True
+        self.receipt_number_input.setText(str(receipt_number))
+        self._receipt_number_updating = False
     
     def save_settings(self):
         """Save settings to database."""
-        text = self.tva_input.text().strip()
+        # Validate TVA
+        tva_text = self.tva_input.text().strip()
         try:
-            tva_value = float(text) if text else 0.0
+            tva_value = float(tva_text) if tva_text else 0.0
         except ValueError:
             tva_value = 0.0
         
@@ -170,7 +207,24 @@ class SettingsPage(QWidget):
             msg.exec()
             return
         
+        # Validate Receipt Number
+        receipt_text = self.receipt_number_input.text().strip()
+        try:
+            receipt_value = int(receipt_text) if receipt_text else 1
+        except ValueError:
+            receipt_value = 1
+        
+        if receipt_value < 1:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setWindowTitle("Validation Error")
+            msg.setText("Receipt number must be at least 1.")
+            msg.setStyleSheet(self.theme.message_box_confirm())
+            msg.exec()
+            return
+        
         update_tva(tva_value)
+        update_receipt_number(receipt_value)
         self.set_editing(False)
         
         # Show success message

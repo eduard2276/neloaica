@@ -10,7 +10,7 @@ from openpyxl import load_workbook
 from src.database.models.defects import get_defect_by_id
 from src.database.models.parts import get_part_by_id
 from src.database.models.labor import get_labor_by_id
-from src.database.models.settings import get_tva
+from src.database.models.settings import get_tva, get_receipt_number, update_receipt_number
 
 
 # Get project root directory
@@ -78,6 +78,14 @@ def generate_receipt_excel(receipt_data: dict) -> str:
     # Open the copied file and fill in the data
     workbook = load_workbook(output_path)
     sheet = workbook.active  # Get Sheet 1
+    
+    # B2: Receipt number and date
+    receipt_number = get_receipt_number()
+    receipt_date = receipt_data.get('date', '')
+    sheet['B8'] = f"                                     Nr. {receipt_number}   Din data {receipt_date}"
+    
+    # Increment receipt number for the next receipt
+    update_receipt_number(receipt_number + 1)
     
     # Fill in client data
     # B10: Client name
