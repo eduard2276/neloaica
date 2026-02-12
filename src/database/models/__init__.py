@@ -67,6 +67,8 @@ from .settings import (
     create_settings_table,
     get_tva,
     update_tva,
+    get_receipt_number,
+    update_receipt_number,
     get_all_settings,
 )
 
@@ -114,6 +116,8 @@ __all__ = [
     # Settings functions
     "get_tva",
     "update_tva",
+    "get_receipt_number",
+    "update_receipt_number",
     "get_all_settings",
 ]
 

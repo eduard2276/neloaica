@@ -2,42 +2,26 @@
 
 **Automotive Service Management System**
 
-A desktop database management application for small to medium automotive service businesses. Built with Python and PySide6 (Qt6), Neloaica provides a user-friendly interface for managing clients, vehicles, services, parts, defects, and generating service receipts with Excel export functionality.
+A desktop database management application for small to medium automotive service businesses. Built with Python and PySide6 (Qt6), Neloaica provides a user-friendly interface for managing clients, vehicles, services, parts, defects, and generating service receipts with Excel export.
 
 ---
 
 ## Table of Contents
 
-- [Project Overview](#project-overview)
 - [Quick Start](#quick-start)
 - [Technology Stack](#technology-stack)
 - [Architecture Overview](#architecture-overview)
-- [Main Components](#main-components)
-- [Database Schema](#database-schema)
 - [Project Structure](#project-structure)
+- [Database Schema](#database-schema)
+- [Key Features](#key-features)
 - [Communication Patterns](#communication-patterns)
 - [Startup Flow](#startup-flow)
-- [Key Features](#key-features)
+- [Design Patterns](#design-patterns)
+- [Styling System](#styling-system)
+- [Error Handling](#error-handling)
 - [Development Guide](#development-guide)
-
----
-
-## Project Overview
-
-### Purpose
-Track customer information, vehicle records, service catalogs, parts inventory, vehicle defects, and generate professional service receipts with Excel export capability.
-
-### Domain
-Automotive service shop management - handling the complete workflow from customer intake to receipt generation.
-
-### Key Responsibilities
-- **Client Management**: CRUD operations for customer records with address tracking
-- **Vehicle Tracking**: Manage cars with VIN validation and client association
-- **Service Catalog**: Maintain available labor/service types
-- **Parts Inventory**: Track available automotive parts
-- **Defects Registry**: Catalog vehicle defects (client-reported and discovered)
-- **Receipt Generation**: Create comprehensive service receipts with Excel export
-- **Settings Management**: Configure application settings (TVA/VAT rates)
+- [Known Limitations](#known-limitations)
+- [AI Context Summary](#ai-context-summary)
 
 ---
 
@@ -73,8 +57,13 @@ python -m src.main
 ### First Launch
 On first launch, the application automatically:
 - Creates the SQLite database (`neloaica.db`)
-- Initializes all tables
-- Populates sample data for testing
+- Initializes all 6 tables (clients, cars, labor, parts, defects, settings)
+- Populates sample data for testing (10 clients, 11 cars, 12 services, 15 parts, 15 defects)
+- Inserts default settings row (TVA = 21.0%)
+
+### Database Location
+- **Development mode**: `neloaica.db` in project root
+- **Frozen executable** (PyInstaller/cx_Freeze): `neloaica.db` in executable directory
 
 ---
 
@@ -86,12 +75,8 @@ On first launch, the application automatically:
 | GUI Framework | PySide6 (Qt6) | >= 6.6.0 |
 | Database | SQLite3 | Built-in |
 | Excel Export | openpyxl | >= 3.1.0 |
-
-### Design Patterns Used
-- **Singleton Pattern**: DatabaseConnection, ThemeManager
-- **Model-View Architecture**: Separation of data layer and UI
-- **Signal-Slot Pattern**: Qt's event communication system
-- **Factory Pattern**: Theme style generators
+| Build System | setuptools | pyproject.toml (PEP 621) |
+| Dev Tools | pytest, pytest-qt, black, isort, flake8 | See pyproject.toml |
 
 ---
 
@@ -117,160 +102,34 @@ On first launch, the application automatically:
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                    Services Layer                            │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ excel_export.py - Receipt Excel generation             │ │
-│  └────────────────────────────────────────────────────────┘ │
+│  └── excel_export.py - Receipt Excel generation             │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                 Database Models Layer                        │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │ clients  │ │   cars   │ │  labor   │ │  parts   │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-│  ┌──────────┐ ┌──────────┐                                  │
-│  │ defects  │ │ settings │                                  │
-│  └──────────┘ └──────────┘                                  │
+│              Database Models Layer (per-entity CRUD)         │
+│  clients │ cars │ labor │ parts │ defects │ settings        │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│           Database Connection (Singleton)                    │
-│  • Thread-safe SQLite connection                             │
-│  • Foreign key enforcement                                   │
-│  • Row factory for dict results                              │
+│         Database Connection (Singleton) → SQLite            │
+│  • Thread-safe │ Foreign keys │ Row factory (dict results)  │
 └─────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────┐
-│              SQLite Database (neloaica.db)                   │
-└─────────────────────────────────────────────────────────────┘
+
+Cross-cutting:
+  Styles Layer  → ThemeManager singleton provides styles to all UI
+  Widgets Layer → NoScroll* widgets used in scrollable forms
 ```
 
----
+### Layering Rules
+- ✅ Pages → Models, Styles, Widgets
+- ✅ Services → Models
+- ✅ Models → DatabaseConnection
+- ❌ Database layer → Pages, Services, or Styles
+- ❌ Services → Pages
+- ❌ No circular imports
 
-## Main Components
-
-### 1. UI Layer (`src/pages/`)
-
-| Component | Purpose | Key Features |
-|-----------|---------|--------------|
-| `ClientsPage` | Customer management | CRUD, search, table view |
-| `CarsPage` | Vehicle management | Client association, VIN tracking |
-| `LaborPage` | Service catalog | Service type management |
-| `PartsPage` | Parts inventory | Parts catalog management |
-| `DefectsPage` | Defects registry | Defect tracking |
-| `ReceiptsPage` | Receipt creation | Multi-section form, Excel export |
-| `DashboardPage` | Statistics overview | Summary data display |
-| `SettingsPage` | Configuration | TVA/VAT settings |
-
-### 2. Receipts Subsystem (`src/pages/receipts/`)
-
-The receipts module is the most complex component with multiple sub-widgets:
-
-```
-ReceiptsPage
-├── ReceiptInfoWidget      - Customer & car selection
-├── DefectsSectionWidget   - Client-reported defects (reusable)
-├── DefectsSectionWidget   - Discovered defects (reusable)
-├── PartsSectionWidget     - Parts received from client
-├── LaborSectionWidget     - Labor services with total cost
-├── BillablePartsSectionWidget - Parts used with pricing
-└── Generate Button        - Excel export trigger
-```
-
-### 3. Services Layer (`src/services/`)
-
-| Service | Purpose |
-|---------|---------|
-| `excel_export.py` | Generate Excel receipts from templates |
-
-### 4. Styling System (`src/styles/`)
-
-| Component | Purpose |
-|-----------|---------|
-| `theme_manager.py` | Singleton theme manager with 20+ style methods |
-| `colors.py` | Color palette definitions (Light/Dark themes) |
-
-### 5. Custom Widgets (`src/widgets/`)
-
-| Widget | Purpose |
-|--------|---------|
-| `NoScrollComboBox` | ComboBox that prevents scroll wheel hijacking |
-
----
-
-## Database Schema
-
-### Entity Relationship Diagram
-
-```
-┌─────────────┐       ┌─────────────┐
-│   CLIENTS   │───────│    CARS     │
-├─────────────┤  1:N  ├─────────────┤
-│ id (PK)     │       │ id (PK)     │
-│ first_name  │       │ client_id   │──→ FK
-│ last_name   │       │ plate_number│
-│ address     │       │ vin         │
-└─────────────┘       │ model       │
-                      │ kilometers  │
-                      └─────────────┘
-
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│    LABOR    │  │    PARTS    │  │   DEFECTS   │
-├─────────────┤  ├─────────────┤  ├─────────────┤
-│ id (PK)     │  │ id (PK)     │  │ id (PK)     │
-│ service_name│  │ part_name   │  │ defect_name │
-└─────────────┘  └─────────────┘  └─────────────┘
-
-┌─────────────┐
-│  SETTINGS   │
-├─────────────┤
-│ id (PK)=1   │  ← Singleton row
-│ tva         │  ← VAT percentage
-└─────────────┘
-```
-
-### Table Definitions
-
-#### Clients
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PRIMARY KEY, AUTO |
-| first_name | TEXT | NOT NULL |
-| last_name | TEXT | NOT NULL |
-| address | TEXT | - |
-
-#### Cars
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PRIMARY KEY, AUTO |
-| client_id | INTEGER | NOT NULL, FK → clients(id) CASCADE DELETE |
-| plate_number | TEXT | NOT NULL |
-| vin | TEXT | NOT NULL, UNIQUE |
-| model | TEXT | NOT NULL |
-| kilometers | INTEGER | DEFAULT 0 |
-
-#### Labor
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PRIMARY KEY, AUTO |
-| service_name | TEXT | NOT NULL |
-
-#### Parts
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PRIMARY KEY, AUTO |
-| part_name | TEXT | NOT NULL |
-
-#### Defects
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PRIMARY KEY, AUTO |
-| defect_name | TEXT | NOT NULL |
-
-#### Settings
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PRIMARY KEY, CHECK (id = 1) |
-| tva | REAL | NOT NULL, DEFAULT 19.0 |
+### Threading Model
+Single-threaded. The Qt event loop handles all UI and database operations on the main thread. SQLite performs well for this scale. `check_same_thread=False` is set on the connection for future extensibility.
 
 ---
 
@@ -280,217 +139,339 @@ ReceiptsPage
 Neloaica/
 ├── src/
 │   ├── __init__.py
-│   ├── main.py                      # Application entry point
+│   ├── main.py                      # Entry point: MainWindow, Sidebar, main()
 │   │
 │   ├── database/
-│   │   ├── __init__.py              # Package exports
-│   │   ├── connection.py            # Singleton DB connection
+│   │   ├── __init__.py              # Exports: init_database(), populate_mock_data()
+│   │   ├── connection.py            # Singleton DatabaseConnection
 │   │   └── models/
-│   │       ├── __init__.py          # Model exports & init_database()
-│   │       ├── clients.py           # Client CRUD operations
-│   │       ├── cars.py              # Car CRUD operations
-│   │       ├── labor.py             # Labor CRUD operations
-│   │       ├── parts.py             # Parts CRUD operations
-│   │       ├── defects.py           # Defects CRUD operations
-│   │       └── settings.py          # Settings (TVA) operations
+│   │       ├── __init__.py          # Aggregates all model functions
+│   │       ├── clients.py           # Client CRUD (id, first_name, last_name, address)
+│   │       ├── cars.py              # Car CRUD (id, client_id FK, plate, vin, model, km)
+│   │       ├── labor.py             # Labor CRUD (id, service_name)
+│   │       ├── parts.py             # Parts CRUD (id, part_name)
+│   │       ├── defects.py           # Defects CRUD (id, defect_name)
+│   │       └── settings.py          # Settings: get_tva(), update_tva(), get_all_settings()
 │   │
 │   ├── pages/
-│   │   ├── __init__.py              # Page exports
-│   │   ├── clients.py               # Clients management UI
-│   │   ├── cars.py                  # Cars management UI
-│   │   ├── labor.py                 # Services management UI
-│   │   ├── parts.py                 # Parts management UI
-│   │   ├── defects.py               # Defects management UI
-│   │   ├── dashboard.py             # Statistics overview
-│   │   ├── settings.py              # TVA configuration UI
-│   │   └── receipts/
-│   │       ├── __init__.py
-│   │       ├── receipts.py          # Main receipts page
-│   │       ├── receipt_info.py      # Customer/car selection
-│   │       ├── defects_section.py   # Defects list widget
-│   │       ├── parts_section.py     # Parts received widget
-│   │       ├── labor_section.py     # Labor services widget
-│   │       └── billable_parts_section.py  # Parts with pricing
+│   │   ├── __init__.py              # Exports all Page classes
+│   │   ├── clients.py               # ClientsPage + ClientDialog
+│   │   ├── cars.py                  # CarsPage + CarDialog (VIN validation)
+│   │   ├── labor.py                 # LaborPage + LaborDialog
+│   │   ├── parts.py                 # PartsPage + PartDialog
+│   │   ├── defects.py               # DefectsPage + DefectDialog
+│   │   ├── dashboard.py             # DashboardPage + StatCard
+│   │   ├── settings.py              # SettingsPage (TVA management)
+│   │   └── receipts/                # Receipt builder subpackage
+│   │       ├── __init__.py          # Exports: ReceiptsPage
+│   │       ├── receipts.py          # Orchestrator: aggregates sections, grand total, Excel export
+│   │       ├── receipt_info.py      # Client/car dropdowns, date picker, km formatting
+│   │       ├── defects_section.py   # Reusable defect list (used ×2: client + discovered)
+│   │       ├── parts_section.py     # Parts received from client
+│   │       ├── labor_section.py     # Labor services with total cost
+│   │       └── billable_parts_section.py  # Parts used with units × price/unit
 │   │
 │   ├── services/
-│   │   ├── __init__.py              # Service exports
-│   │   └── excel_export.py          # Excel generation logic
+│   │   ├── __init__.py              # Exports: generate_receipt_excel, template_exists
+│   │   └── excel_export.py          # Excel generation from template (openpyxl)
 │   │
 │   ├── styles/
-│   │   ├── __init__.py              # Theme exports
-│   │   ├── colors.py                # Color palette definitions
-│   │   └── theme_manager.py         # Centralized styling (384 lines)
+│   │   ├── __init__.py              # Exports: theme (global ThemeManager instance)
+│   │   ├── colors.py                # LIGHT_THEME / DARK_THEME color dictionaries
+│   │   └── theme_manager.py         # Singleton with 20+ style generator methods
 │   │
 │   └── widgets/
-│       ├── __init__.py              # Widget exports
-│       └── combo_box.py             # NoScrollComboBox widget
+│       ├── __init__.py              # Exports: NoScrollComboBox, NoScrollSpinBox, etc.
+│       └── combo_box.py             # Scroll-safe combo boxes and spin boxes
 │
 ├── templates/
 │   └── Template-deviz.xlsx          # Excel receipt template
 │
-├── exports/
-│   └── receipts/                    # Generated Excel receipts
-│
+├── exports/receipts/                # Generated Excel receipts (runtime, git-ignored)
 ├── tests/
 │   ├── __init__.py
 │   └── test_main.py
 │
-├── neloaica.db                      # SQLite database (runtime)
-├── requirements.txt                 # Python dependencies
-├── pyproject.toml                   # Project metadata
+├── neloaica.db                      # SQLite database (runtime, git-ignored)
+├── requirements.txt                 # PySide6>=6.6.0, openpyxl>=3.1.0
+├── pyproject.toml                   # Project metadata (PEP 621)
 └── README.md                        # This file
 ```
+
+### Main Components
+
+| Component | Purpose | Key Features |
+|-----------|---------|--------------|
+| `ClientsPage` | Customer management | CRUD, search, table view |
+| `CarsPage` | Vehicle management | Client association, VIN validation (17 chars) |
+| `LaborPage` | Service catalog | Service type management |
+| `PartsPage` | Parts inventory | Parts catalog management |
+| `DefectsPage` | Defects registry | Defect description tracking |
+| `ReceiptsPage` | Receipt creation | Multi-section form, grand total, Excel export |
+| `DashboardPage` | Statistics overview | Summary cards, auto-reload on show |
+| `SettingsPage` | Configuration | TVA/VAT % with validation (0-100) |
+
+Each CRUD page follows a consistent pattern: table widget with search, add/edit/delete buttons, emoji icon buttons per row (✏️/🗑️), dialog-based forms, and styled confirmation dialogs.
+
+### Receipts Subsystem
+
+The most complex component, composed of signal-connected sub-widgets:
+
+```
+ReceiptsPage (orchestrator)
+├── ReceiptInfoWidget         → Client/car selection, date picker, editable km
+├── DefectsSectionWidget ×2   → "Defects by Client" + "Discovered Defects"
+├── PartsSectionWidget        → Parts received from client
+├── LaborSectionWidget        → Labor services + total labor cost
+├── BillablePartsSectionWidget → Parts used with units × price, subtotals
+├── Grand Total display       → Labor + Parts
+└── Generate Receipt button   → Excel export trigger
+```
+
+### Model Functions (per entity)
+
+Each model module (`clients.py`, `cars.py`, `labor.py`, `parts.py`, `defects.py`) provides:
+- `create_<entity>_table()` — DDL via `CREATE TABLE IF NOT EXISTS`
+- `populate_<entity>_mock_data()` — Insert demo data (checks if empty first)
+- `get_all_<entity>()` — Read all records (returns `list[dict]`)
+- `get_<entity>_by_id(id)` — Read single record
+- `add_<entity>(...)` — Insert, returns new ID
+- `update_<entity>(id, ...)` — Modify existing record
+- `delete_<entity>(id)` — Remove record
+- `get_<entity>_count()` — Aggregate count
+
+Special functions: `get_clients_for_dropdown()`, `update_car_kilometers()`, `get_tva()`, `update_tva()`.
+
+---
+
+## Database Schema
+
+### Entity Relationships
+
+```
+┌─────────────┐       ┌─────────────┐
+│   CLIENTS   │───────│    CARS     │
+├─────────────┤  1:N  ├─────────────┤
+│ id (PK)     │       │ id (PK)     │
+│ first_name  │       │ client_id   │──→ FK (CASCADE DELETE)
+│ last_name   │       │ plate_number│
+│ address     │       │ vin (UNIQUE)│
+└─────────────┘       │ model       │
+                      │ kilometers  │
+                      └─────────────┘
+
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│    LABOR    │  │    PARTS    │  │   DEFECTS   │  │  SETTINGS   │
+├─────────────┤  ├─────────────┤  ├─────────────┤  ├─────────────┤
+│ id (PK)     │  │ id (PK)     │  │ id (PK)     │  │ id=1 (PK)   │
+│ service_name│  │ part_name   │  │ defect_name │  │ tva (21.0%) │
+└─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘
+```
+
+### Table Definitions
+
+<details>
+<summary>Click to expand SQL definitions</summary>
+
+```sql
+CREATE TABLE clients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    address TEXT
+);
+-- 10 mock records on first run
+
+CREATE TABLE cars (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    plate_number TEXT NOT NULL,
+    vin TEXT NOT NULL UNIQUE,           -- 17-character VIN
+    model TEXT NOT NULL,
+    kilometers INTEGER DEFAULT 0,
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+);
+-- 11 mock records on first run
+
+CREATE TABLE labor (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    service_name TEXT NOT NULL
+);
+-- 12 mock records on first run
+
+CREATE TABLE parts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    part_name TEXT NOT NULL
+);
+-- 15 mock records on first run
+
+CREATE TABLE defects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    defect_name TEXT NOT NULL
+);
+-- 15 mock records on first run
+
+CREATE TABLE settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),  -- Singleton row
+    tva REAL NOT NULL DEFAULT 21.0          -- VAT percentage
+);
+-- Default row auto-inserted if empty
+```
+
+</details>
+
+---
+
+## Key Features
+
+### Receipt Generation (Excel Export)
+
+Receipts are generated from `templates/Template-deviz.xlsx` into `exports/receipts/Deviz_<Client>_<Timestamp>.xlsx`.
+
+**Cell mapping:**
+
+| Excel Cell(s) | Data |
+|----------------|------|
+| B10 | Client name |
+| B12 | Client address |
+| D10 | Car model |
+| F10 | Kilometers |
+| E11 | Plate number |
+| E12 | VIN |
+| A14–A18 | Client-reported defects (max 5) |
+| A20–A24 | Discovered defects (max 5) |
+| C14–C17 | Parts received from client (max 4) |
+| B36+ | Labor services (dynamic rows, formatting copied) |
+| E(labor end) | Total labor cost |
+| B42+ (offset) | Billable parts: name (B), units (C), price/unit (D), total (E), TVA (F) |
+| F(grand total) | Grand total (labor + parts) |
+
+**TVA calculation** (extracted from prices that already include tax):
+```python
+tva = (price * tva_percentage) / (100 + tva_percentage)
+```
+
+Truncation warnings are returned when data exceeds template capacity. Generated files auto-open via `os.startfile()`.
+
+### Settings Management
+
+Single-row `settings` table with TVA (VAT) percentage. The `SettingsPage` provides edit/save/cancel with validation (0–100%) and read-only mode.
 
 ---
 
 ## Communication Patterns
 
-### Internal Communication
-
-#### Signal-Slot Pattern (Qt)
-The application uses Qt's signal-slot mechanism for component communication:
+### UI → Data Layer
+Direct function calls: pages import model functions and call them synchronously.
 
 ```python
-# Example from ReceiptsPage
-self.defects_widget.defects_changed.connect(self.on_defects_changed)
-self.labor_widget.labor_changed.connect(self.on_labor_changed)
-self.billable_parts_widget.parts_changed.connect(self.on_billable_parts_changed)
+from src.database.models import get_all_clients
+clients = get_all_clients()  # Returns list[dict]
 ```
 
-#### Key Signals
+### Navigation (Signal/Slot)
+Sidebar `QListWidget.currentRowChanged` → `MainWindow.change_page()` → `QStackedWidget.setCurrentIndex()`.
 
-| Component | Signal | Payload |
-|-----------|--------|---------|
-| `ReceiptInfoWidget` | `data_changed` | `dict` (customer/car info) |
+### Receipt Sections (Observer Pattern)
+Each receipt section emits Qt Signals when data changes. `ReceiptsPage` connects to all and aggregates into `receipt_data`:
+
+| Widget | Signal | Payload |
+|--------|--------|---------|
+| `ReceiptInfoWidget` | `data_changed` | `dict` (client, car, date info) |
 | `DefectsSectionWidget` | `defects_changed` | `list[int]` (defect IDs) |
 | `PartsSectionWidget` | `parts_changed` | `list[int]` (part IDs) |
-| `LaborSectionWidget` | `labor_changed` | `list[int], float` (IDs, total cost) |
-| `BillablePartsSectionWidget` | `parts_changed` | `list[dict], float` (parts data, total) |
+| `LaborSectionWidget` | `labor_changed` | `list[int], float` (IDs + total cost) |
+| `BillablePartsSectionWidget` | `parts_changed` | `list[dict], float` (parts data + total) |
 
-### Data Flow
+### CRUD Dialog Pattern
+1. Page creates `<Entity>Dialog(parent, optional_data)`.
+2. Dialog displays form, `exec()` blocks.
+3. User submits → dialog validates → page calls `dialog.get_data()` → page calls model function → page reloads.
 
-```
-User Interaction
-       ↓
-Widget Signal Emission
-       ↓
-ReceiptsPage Signal Handler
-       ↓
-Update receipt_data dict
-       ↓
-Generate Excel (on button click)
-       ↓
-excel_export.py processes data
-       ↓
-Excel file created from template
+### State Restoration
+Receipt sections save/restore user selections on page transitions (`showEvent`). Dropdowns reload from database while preserving in-progress selections via `save_form_state()` / `restore_form_state()`.
+
+### Theming
+All UI components import the global `theme` singleton and call style generators:
+```python
+from src.styles import theme
+button.setStyleSheet(theme.button("success"))
+table.setStyleSheet(theme.table())
 ```
 
 ---
 
 ## Startup Flow
 
-### Initialization Sequence
-
 ```
-1. Application Start (main.py)
-   └─→ QApplication created
-   
-2. Database Initialization
-   ├─→ init_database() called
-   │   ├─→ create_clients_table()
-   │   ├─→ create_cars_table()
-   │   ├─→ create_labor_table()
-   │   ├─→ create_parts_table()
-   │   ├─→ create_defects_table()
-   │   └─→ create_settings_table()
-   │
-   └─→ populate_mock_data() called
-       ├─→ populate_clients_mock_data()
-       ├─→ populate_cars_mock_data()
-       ├─→ populate_labor_mock_data()
-       ├─→ populate_parts_mock_data()
-       └─→ populate_defects_mock_data()
-
-3. Main Window Creation
-   ├─→ QStackedWidget (pages container)
-   │   ├─→ ClientsPage()
-   │   ├─→ CarsPage()
-   │   ├─→ LaborPage()
-   │   ├─→ PartsPage()
-   │   ├─→ DefectsPage()
-   │   ├─→ ReceiptsPage()
-   │   ├─→ DashboardPage()
-   │   └─→ SettingsPage()
-   │
-   └─→ Sidebar()
-       └─→ Navigation list (currentRowChanged signal)
-
-4. Window Display
-   └─→ mainWindow.show()
-       └─→ app.exec()
+1. python -m src.main → main() called
+2. QApplication created (name="Neloaica", org="Nokia", version="1.0.0")
+3. init_database() → CREATE TABLE IF NOT EXISTS for all 6 tables
+   └── Settings table auto-inserts default row (tva=21.0) if empty
+4. populate_mock_data() → inserts demo data into 5 tables (if empty)
+5. ThemeManager singleton initialized (defaults to "light" theme)
+6. MainWindow constructed:
+   ├── QStackedWidget with all 8 pages (each loads data in __init__)
+   │   └── ReceiptsPage creates 6 section widgets, each loading their data
+   └── Sidebar with 8 navigation items
+7. window.show() → app.exec() → Qt event loop (blocks until quit)
 ```
 
-### Database Connection (Singleton)
-
-```python
-class DatabaseConnection:
-    _instance = None
-    _connection = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-```
+All pages load data at startup (eager loading). Receipt sections also reload data on every `showEvent` to reflect changes from other pages.
 
 ---
 
-## Key Features
+## Design Patterns
 
-### Receipt Generation
+| Pattern | Where Used | Purpose |
+|---------|-----------|---------|
+| **Singleton** | `DatabaseConnection`, `ThemeManager` | Single DB connection, single theme source of truth |
+| **Observer** | Receipt section signals | Loose coupling between receipt widgets |
+| **Facade** | `models/__init__.py`, `services/__init__.py`, `styles/__init__.py` | Single import point per layer |
+| **Modal Dialog** | All CRUD pages (`*Dialog` classes) | Consistent add/edit forms with validation |
+| **Table-View** | All CRUD pages | QTableWidget with search, row actions, consistent styling |
+| **State Preservation** | Receipt sections | Save/restore form state across page navigations |
 
-The receipt system creates Excel documents from a template with the following data mapping:
+---
 
-| Excel Cell | Data |
-|------------|------|
-| B10 | Client name |
-| D10 | Car model |
-| F10 | Kilometers |
-| E11 | Plate number |
-| E12 | VIN |
-| B12 | Client address |
-| A14-A18 | Client-reported defects (max 5) |
-| A20-A24 | Discovered defects (max 5) |
-| C14-C17 | Parts received from client (max 4) |
-| B36+ | Labor services (dynamic rows) |
-| E(labor end) | Total labor cost |
-| F(labor end) | Labor TVA |
-| B42+ | Billable parts (dynamic rows) |
-| C | Units |
-| D | Price per unit |
-| E | Part total |
-| F | Part TVA |
+## Styling System
 
-### TVA Calculation
+Centralized `ThemeManager` singleton with 20+ style generator methods. No inline stylesheets — all styling goes through `theme.<method>()`.
 
-TVA is extracted from prices that already include tax:
+### Available Themes
 
-```python
-tva = (price * tva_percentage) / (100 + tva_percentage)
-```
+| Theme | Key Colors |
+|-------|-----------|
+| **Light** (default) | Primary `#3498db`, Success `#2ecc71`, Danger `#e74c3c`, Sidebar `#2c3e50`, Background `#ecf0f1` |
+| **Dark** | Primary `#3498db`, Backgrounds `#1a1a2e`/`#16213e`, Text `#ecf0f1`, Sidebar `#0f0f1a` |
 
-### Theme System
+Switch via: `theme.set_theme("dark")`
 
-Centralized styling with 20+ component methods:
+### Style Methods
 
-```python
-theme.page_title()      # Page header styles
-theme.combobox()        # Dropdown styles
-theme.button("success") # Button variants
-theme.groupbox()        # Section containers
-theme.table()           # Data tables
-# ... and more
-```
+| Category | Methods |
+|----------|---------|
+| Components | `page_title()`, `combobox()`, `line_edit()`, `line_edit_dialog()`, `line_edit_readonly()`, `search_input()`, `groupbox()`, `table()`, `dialog()`, `list_widget()`, `list_widget_with_items()`, `form_label()`, `label_item()` |
+| Buttons | `button(variant)` (primary/success/danger/gray/cancel), `button_icon(variant)`, `button_add()`, `button_remove()` |
+| Layout | `sidebar()`, `sidebar_title()`, `sidebar_button()`, `content_area()`, `scroll_area()` |
+| Special | `message_box_confirm()` |
+
+### Visual Conventions
+- 6–8px border radius
+- Emoji icons in sidebar (👥 🚗 ⚙️ 🔧 ⚠️ 🧾 📊)
+- 28px bold page titles
+- 15–20px form spacing, 30px content margins
+- Variant-based button colors (success=green, danger=red, primary=blue, gray=neutral)
+
+---
+
+## Error Handling
+
+**Validation**: Dialog-level required field checks, VIN length (17 chars), TVA range (0–100%), kilometers digit-only filtering.
+
+**Database**: SQLite constraints (`NOT NULL`, `UNIQUE`, `FOREIGN KEY`) act as safety net. Unique VIN violations caught and shown to user.
+
+**Excel Export**: Template existence check, client selection validation, try/catch with `QMessageBox.critical()`, truncation warnings when data exceeds template limits.
 
 ---
 
@@ -512,17 +493,34 @@ isort src/
 flake8 src/
 ```
 
-### Adding a New Page
+### Naming Conventions
 
-1. Create model in `src/database/models/`
-2. Add table creation to `init_database()`
-3. Create page UI in `src/pages/`
+| Element | Convention | Example |
+|---------|-----------|---------|
+| Modules | `lowercase_with_underscores` | `excel_export.py` |
+| Classes | `PascalCase` | `ClientsPage`, `ThemeManager` |
+| Functions | `lowercase_with_underscores` | `get_all_clients()` |
+| Constants | `UPPER_CASE` | `LIGHT_THEME`, `TEMPLATES_DIR` |
+| Signals | `lowercase_with_underscores` | `data_changed`, `defects_changed` |
+
+### Adding a New Entity
+
+1. Create `src/database/models/<entity>.py` with CRUD functions
+2. Import and register in `src/database/models/__init__.py` (add to `init_database()` and `populate_mock_data()`)
+3. Create `src/pages/<entity>.py` with `<Entity>Page` + `<Entity>Dialog`
 4. Register in `src/pages/__init__.py`
-5. Add to `main.py` pages stack and sidebar
+5. Add page to `MainWindow.pages` stack and `Sidebar.nav_list` in `src/main.py`
+
+### Adding a New Receipt Section
+
+1. Create section widget in `src/pages/receipts/` with a Signal for data changes
+2. Instantiate in `ReceiptsPage.setup_ui()` and connect signal to handler
+3. Update `receipt_data` dict in the handler
+4. Update `excel_export.py` to write the new section data into the template
 
 ### Adding New Theme Styles
 
-Add methods to `ThemeManager` class in `src/styles/theme_manager.py`:
+Add a method to `ThemeManager` in `src/styles/theme_manager.py`:
 
 ```python
 def my_component(self) -> str:
@@ -534,29 +532,58 @@ def my_component(self) -> str:
     """
 ```
 
+### Adding a New Theme
+
+Add a color dictionary to `src/styles/colors.py` and register it in the `THEMES` dict:
+
+```python
+MY_THEME = { "primary": "#...", "success": "#...", ... }
+THEMES = { "light": LIGHT_THEME, "dark": DARK_THEME, "my_theme": MY_THEME }
+```
+
 ---
 
-## Performance Notes
+## Known Limitations
 
-- Optimized for < 10,000 records per table
-- All data loaded into memory on page load
-- Real-time search with substring matching
-- No pagination (suitable for small to medium datasets)
+1. **Limited data validation** — VIN length checked but not format; plate number format not enforced; no email/phone for clients
+2. **No undo/redo** — Destructive operations are immediate and permanent
+3. **Excel template constraints** — Max 5 defects per category, max 4 parts received; cell positions hardcoded
+4. **No user authentication** — Single-user, no access control
+5. **No data backup** — No automated backup mechanism
+6. **Simple search only** — Substring matching, no fuzzy search or advanced filtering
+7. **Single database file** — No support for multiple databases or profiles
+8. **No audit trail** — No change history for records
+9. **No receipt persistence** — Receipts exported to Excel but not saved in the database
+10. **Windows-only auto-open** — `os.startfile()` for generated files is Windows-specific
+11. **Missing pyproject.toml dependency** — `openpyxl` is in `requirements.txt` but not in `pyproject.toml`
+12. **Debug print statements** — `excel_export.py` contains `print()` debug logging (should use `logging` module)
+13. **Eager loading** — All pages load data at startup; no pagination; suitable for <10,000 records per table
 
 ---
 
-## Database Location
+## AI Context Summary
 
-- **Development Mode**: `neloaica.db` in project root
-- **Frozen Executable**: `neloaica.db` in executable directory
+This is a **single-threaded desktop database management tool** built with **Python 3.9+ and PySide6 (Qt6)**. Layered architecture: UI (pages) → Services (Excel export) → Models (CRUD) → DatabaseConnection (singleton) → SQLite.
+
+**Key architectural decisions**: Singleton DB connection + theme manager, per-entity model modules, signal-based receipt sections, centralized ThemeManager with light/dark support, template-based Excel export, mock data auto-population.
+
+**Primary use cases**: Managing clients, tracking vehicles per client, maintaining service/parts/defect catalogs, building and exporting service receipts, configuring TVA/VAT.
+
+**Code generation guidelines**:
+- Use type hints for function signatures
+- Keep model functions pure (no UI code)
+- Use `theme.<method>()` for all styling (no inline stylesheets)
+- Use `NoScrollComboBox` for combo boxes in scrollable areas
+- Emit signals from receipt section widgets when data changes
+- Include docstrings for public functions
+- Validate user input in dialogs before accepting
+- Follow naming conventions (see Development Guide)
 
 ---
 
 ## License
 
 MIT License
-
----
 
 ## Repository
 
