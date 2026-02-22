@@ -21,6 +21,7 @@ from src.database.models import get_all_defects
 from src.database.models.defects import add_defect as add_defect_to_db
 from src.widgets import NoScrollComboBox
 from src.styles import theme
+from src.utils import show_warning, show_info, show_critical
 
 
 class AddDefectDialog(QDialog):
@@ -83,7 +84,7 @@ class AddDefectDialog(QDialog):
     def accept(self):
         """Validate and accept the dialog."""
         if not self.get_defect_name():
-            QMessageBox.warning(self, "Validation Error", "Defect description is required.")
+            show_warning(self, "Validation Error", "Defect description is required.")
             self.defect_name_edit.setFocus()
             return
         
@@ -274,17 +275,9 @@ class DefectsSectionWidget(QWidget):
                     self.defect_combo.addItem(defect_name, new_defect_id)
                     self.defect_combo.blockSignals(False)
                 
-                QMessageBox.information(
-                    self,
-                    "Success",
-                    f"Defect '{defect_name}' added successfully!"
-                )
+                show_info(self, "Success", f"Defect '{defect_name}' added successfully!")
             except Exception as e:
-                QMessageBox.critical(
-                    self,
-                    "Error",
-                    f"Failed to add defect: {str(e)}"
-                )
+                show_critical(self, "Error", f"Failed to add defect: {str(e)}")
     
     def update_list_style(self):
         """Update list widget background based on item count."""

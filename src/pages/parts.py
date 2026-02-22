@@ -23,6 +23,7 @@ from src.database.models import (
     delete_part,
 )
 from src.styles import theme
+from src.utils import show_warning
 
 
 class PartDialog(QDialog):
@@ -101,7 +102,7 @@ class PartDialog(QDialog):
         data = self.get_data()
         
         if not data["part_name"]:
-            QMessageBox.warning(self, "Validation Error", "Part name is required.")
+            show_warning(self, "Validation Error", "Part name is required.")
             self.part_name_edit.setFocus()
             return
         
@@ -253,7 +254,7 @@ class PartsPage(QWidget):
         """Edit the selected part."""
         part_id = self.get_selected_part_id()
         if not part_id:
-            QMessageBox.warning(self, "No Selection", "Please select a part to edit.")
+            show_warning(self, "No Selection", "Please select a part to edit.")
             return
         
         # Find the part data
@@ -271,7 +272,7 @@ class PartsPage(QWidget):
         """Delete the selected part."""
         part_id = self.get_selected_part_id()
         if not part_id:
-            QMessageBox.warning(self, "No Selection", "Please select a part to delete.")
+            show_warning(self, "No Selection", "Please select a part to delete.")
             return
         
         # Find the part data for the confirmation message
@@ -286,36 +287,7 @@ class PartsPage(QWidget):
         msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg_box.setDefaultButton(QMessageBox.StandardButton.No)
         
-        msg_box.setStyleSheet("""
-            QMessageBox {
-                background-color: #2c3e50;
-            }
-            QMessageBox QLabel {
-                color: white;
-                font-size: 14px;
-                padding: 10px;
-                background-color: #2c3e50;
-            }
-            QPushButton {
-                background-color: #2c3e50;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 20px;
-                font-size: 13px;
-                font-weight: bold;
-                min-width: 80px;
-            }
-            QPushButton:hover {
-                background-color: #3d566e;
-            }
-            QPushButton:default {
-                background-color: #3498db;
-            }
-            QPushButton:default:hover {
-                background-color: #2980b9;
-            }
-        """)
+        msg_box.setStyleSheet(theme.message_box_confirm())
         
         reply = msg_box.exec()
         
@@ -350,36 +322,7 @@ class PartsPage(QWidget):
         msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg_box.setDefaultButton(QMessageBox.StandardButton.No)
         
-        msg_box.setStyleSheet("""
-            QMessageBox {
-                background-color: #2c3e50;
-            }
-            QMessageBox QLabel {
-                color: white;
-                font-size: 14px;
-                padding: 10px;
-                background-color: #2c3e50;
-            }
-            QPushButton {
-                background-color: #2c3e50;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 20px;
-                font-size: 13px;
-                font-weight: bold;
-                min-width: 80px;
-            }
-            QPushButton:hover {
-                background-color: #3d566e;
-            }
-            QPushButton:default {
-                background-color: #3498db;
-            }
-            QPushButton:default:hover {
-                background-color: #2980b9;
-            }
-        """)
+        msg_box.setStyleSheet(theme.message_box_confirm())
         
         reply = msg_box.exec()
         

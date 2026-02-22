@@ -13,14 +13,13 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QDialog,
     QMessageBox,
-    QSpinBox,
-    QDoubleSpinBox,
 )
 from PySide6.QtCore import Qt, Signal, QSize
 
 from src.database.models.parts import get_all_parts, add_part as add_part_to_db
-from src.widgets import NoScrollComboBox, NoScrollSpinBox
+from src.widgets import NoScrollComboBox
 from src.styles import theme
+from src.utils import show_warning, show_info, show_critical
 
 
 class AddPartDialog(QDialog):
@@ -83,7 +82,7 @@ class AddPartDialog(QDialog):
     def accept(self):
         """Validate and accept the dialog."""
         if not self.get_part_name():
-            QMessageBox.warning(self, "Validation Error", "Part name is required.")
+            show_warning(self, "Validation Error", "Part name is required.")
             self.part_name_edit.setFocus()
             return
         
@@ -194,7 +193,7 @@ class BillablePartsSectionWidget(QWidget):
                     self.add_part(
                         part_id, 
                         part["part_name"], 
-                        part_item.get("units", 1),
+                        part_item.get("units", 0),
                         part_item.get("price_per_unit", 0.0)
                     )
     
@@ -210,15 +209,15 @@ class BillablePartsSectionWidget(QWidget):
         if not part:
             return
         
-        # Add to list with default values
-        self.add_part(part_id, part["part_name"], 1, 0.0)
+        # Add to list with default values (empty units)
+        self.add_part(part_id, part["part_name"], 0, 0.0)
         
         # Reset combo box
         self.part_combo.blockSignals(True)
         self.part_combo.setCurrentIndex(0)
         self.part_combo.blockSignals(False)
     
-    def add_part(self, part_id: int, part_name: str, units: int = 1, price_per_unit: float = 0.0):
+    def add_part(self, part_id: int, part_name: str, units: int = 0, price_per_unit: float = 0.0):
         """Add a part to the list."""
         # Create list item
         list_item = QListWidgetItem()
@@ -247,13 +246,14 @@ class BillablePartsSectionWidget(QWidget):
         units_label = QLabel("Units:")
         units_label.setStyleSheet(theme.form_label())
         units_group_layout.addWidget(units_label)
-        units_input = NoScrollSpinBox()
-        units_input.setRange(1, 9999)
-        units_input.setValue(units)
+        units_input = QLineEdit()
+        units_input.setPlaceholderText("1")
         units_input.setFixedWidth(50)
-        units_input.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        units_input.setStyleSheet(theme.line_edit().replace("QLineEdit", "QSpinBox"))
-        units_input.valueChanged.connect(lambda val: self.update_part_units(part_id, val))
+        units_input.setStyleSheet(theme.line_edit())
+        if units > 0:
+            units_input.setText(str(units))
+        units_input.setProperty("part_id", part_id)
+        units_input.textChanged.connect(lambda text, p_id=part_id, inp=units_input: self.on_units_text_changed(p_id, text, inp))
         units_group_layout.addWidget(units_input)
         units_group_layout.addStretch()
         item_layout.addWidget(units_group, 2)
@@ -314,32 +314,6 @@ class BillablePartsSectionWidget(QWidget):
         
         # Update list style
         self.update_list_style()
-        
-        # Emit signal
-        self.emit_parts_changed()
-    
-    def update_part_units(self, part_id: int, units: int):
-        """Update the units of a part item."""
-        for part_item in self.selected_parts:
-            if part_item["part_id"] == part_id:
-                part_item["units"] = units
-                break
-        
-        # Update subtotal label in the list
-        self.update_subtotal_label(part_id)
-        
-        # Emit signal
-        self.emit_parts_changed()
-    
-    def update_part_price(self, part_id: int, price: float):
-        """Update the price per unit of a part item."""
-        for part_item in self.selected_parts:
-            if part_item["part_id"] == part_id:
-                part_item["price_per_unit"] = price
-                break
-        
-        # Update subtotal label in the list
-        self.update_subtotal_label(part_id)
         
         # Emit signal
         self.emit_parts_changed()
@@ -423,17 +397,9 @@ class BillablePartsSectionWidget(QWidget):
                 # Reload data to include new part
                 self.load_data(restore_state=True)
                 
-                QMessageBox.information(
-                    self,
-                    "Success",
-                    f"Part '{part_name}' added successfully!"
-                )
+                show_info(self, "Success", f"Part '{part_name}' added successfully!")
             except Exception as e:
-                QMessageBox.warning(
-                    self,
-                    "Error",
-                    f"Failed to add part: {str(e)}"
-                )
+                show_critical(self, "Error", f"Failed to add part: {str(e)}")
     
     def update_list_style(self):
         """Update list widget background based on item count."""
@@ -470,6 +436,36 @@ class BillablePartsSectionWidget(QWidget):
             return float(cleaned) if cleaned else 0.0
         except ValueError:
             return 0.0
+    
+    def on_units_text_changed(self, part_id: int, text: str, units_input: QLineEdit):
+        """Validate units input (integers only) and update part units."""
+        if getattr(self, '_units_updating', False):
+            return
+        self._units_updating = True
+        
+        cursor_pos = units_input.cursorPosition()
+        
+        # Keep only digits
+        digits = ''.join(c for c in text if c.isdigit())
+        
+        # Remove leading zeros but allow empty
+        if digits and len(digits) > 1:
+            digits = digits.lstrip('0') or '0'
+        
+        units_input.setText(digits)
+        units_input.setCursorPosition(min(cursor_pos, len(digits)))
+        
+        # Update units in selected_parts
+        units_value = int(digits) if digits else 0
+        for part_item in self.selected_parts:
+            if part_item["part_id"] == part_id:
+                part_item["units"] = units_value
+                break
+        
+        self.update_subtotal_label(part_id)
+        
+        self._units_updating = False
+        self.emit_parts_changed()
     
     def on_price_text_changed(self, part_id: int, text: str, price_input: QLineEdit):
         """Format price input and update part price."""

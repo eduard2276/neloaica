@@ -19,7 +19,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from src.pages import CarsPage, ClientsPage, DashboardPage, DefectsPage, LaborPage, PartsPage, ReceiptsPage, SettingsPage
-from src.database import init_database, populate_mock_data
+from src.database import init_database
+from src.services import create_backup, should_create_daily_backup
 from src.styles import theme
 
 
@@ -114,9 +115,20 @@ def main():
     app.setOrganizationName("Nokia")
     app.setApplicationVersion("1.0.0")
     
-    # Initialize database and populate with mock data
+    # Initialize database (create tables if they don't exist)
     init_database()
-    populate_mock_data()
+    
+    # Create automatic backups
+    # 1. Backup on startup
+    print("[INFO] Creating startup backup...")
+    create_backup("startup")
+    
+    # 2. Daily automatic backup (if not already created today)
+    if should_create_daily_backup():
+        print("[INFO] Creating daily automatic backup...")
+        create_backup("auto")
+    else:
+        print("[INFO] Daily backup already exists for today.")
     
     window = MainWindow()
     window.show()

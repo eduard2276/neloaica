@@ -19,6 +19,7 @@ from PySide6.QtCore import Qt, Signal, QSize
 from src.database.models.parts import get_all_parts, add_part as add_part_to_db
 from src.widgets import NoScrollComboBox
 from src.styles import theme
+from src.utils import show_warning, show_info, show_critical
 
 
 class AddPartDialog(QDialog):
@@ -81,7 +82,7 @@ class AddPartDialog(QDialog):
     def accept(self):
         """Validate and accept the dialog."""
         if not self.get_part_name():
-            QMessageBox.warning(self, "Validation Error", "Part name is required.")
+            show_warning(self, "Validation Error", "Part name is required.")
             self.part_name_edit.setFocus()
             return
         
@@ -279,17 +280,9 @@ class PartsSectionWidget(QWidget):
                 self.load_data()
                 
                 # Show success message
-                QMessageBox.information(
-                    self,
-                    "Success",
-                    f"Part '{part_name}' has been added to the database."
-                )
+                show_info(self, "Success", f"Part '{part_name}' has been added to the database.")
             except Exception as e:
-                QMessageBox.critical(
-                    self,
-                    "Error",
-                    f"Failed to add part: {str(e)}"
-                )
+                show_critical(self, "Error", f"Failed to add part: {str(e)}")
     
     def get_selected_parts(self) -> list:
         """Get the list of selected part IDs."""

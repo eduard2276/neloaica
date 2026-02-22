@@ -23,6 +23,7 @@ from src.database.models import (
     delete_labor,
 )
 from src.styles import theme
+from src.utils import show_warning
 
 
 class LaborDialog(QDialog):
@@ -101,7 +102,7 @@ class LaborDialog(QDialog):
         data = self.get_data()
         
         if not data["service_name"]:
-            QMessageBox.warning(self, "Validation Error", "Service name is required.")
+            show_warning(self, "Validation Error", "Service name is required.")
             self.service_name_edit.setFocus()
             return
         
@@ -253,7 +254,7 @@ class LaborPage(QWidget):
         """Edit the selected labor service."""
         labor_id = self.get_selected_labor_id()
         if not labor_id:
-            QMessageBox.warning(self, "No Selection", "Please select a service to edit.")
+            show_warning(self, "No Selection", "Please select a service to edit.")
             return
         
         # Find the labor data
@@ -271,7 +272,7 @@ class LaborPage(QWidget):
         """Delete the selected labor service."""
         labor_id = self.get_selected_labor_id()
         if not labor_id:
-            QMessageBox.warning(self, "No Selection", "Please select a service to delete.")
+            show_warning(self, "No Selection", "Please select a service to delete.")
             return
         
         # Find the labor data for the confirmation message
@@ -286,36 +287,7 @@ class LaborPage(QWidget):
         msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg_box.setDefaultButton(QMessageBox.StandardButton.No)
         
-        msg_box.setStyleSheet("""
-            QMessageBox {
-                background-color: #2c3e50;
-            }
-            QMessageBox QLabel {
-                color: white;
-                font-size: 14px;
-                padding: 10px;
-                background-color: #2c3e50;
-            }
-            QPushButton {
-                background-color: #2c3e50;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 20px;
-                font-size: 13px;
-                font-weight: bold;
-                min-width: 80px;
-            }
-            QPushButton:hover {
-                background-color: #3d566e;
-            }
-            QPushButton:default {
-                background-color: #3498db;
-            }
-            QPushButton:default:hover {
-                background-color: #2980b9;
-            }
-        """)
+        msg_box.setStyleSheet(theme.message_box_confirm())
         
         reply = msg_box.exec()
         
@@ -350,36 +322,7 @@ class LaborPage(QWidget):
         msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg_box.setDefaultButton(QMessageBox.StandardButton.No)
         
-        msg_box.setStyleSheet("""
-            QMessageBox {
-                background-color: #2c3e50;
-            }
-            QMessageBox QLabel {
-                color: white;
-                font-size: 14px;
-                padding: 10px;
-                background-color: #2c3e50;
-            }
-            QPushButton {
-                background-color: #2c3e50;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 20px;
-                font-size: 13px;
-                font-weight: bold;
-                min-width: 80px;
-            }
-            QPushButton:hover {
-                background-color: #3d566e;
-            }
-            QPushButton:default {
-                background-color: #3498db;
-            }
-            QPushButton:default:hover {
-                background-color: #2980b9;
-            }
-        """)
+        msg_box.setStyleSheet(theme.message_box_confirm())
         
         reply = msg_box.exec()
         

@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QMessageBox,
     QComboBox,
-    QSpinBox,
 )
 from PySide6.QtCore import Qt
 
@@ -28,6 +27,7 @@ from src.database.models import (
     get_clients_for_dropdown,
 )
 from src.styles import theme
+from src.utils import show_warning, show_critical
 
 
 class CarDialog(QDialog):
@@ -37,6 +37,9 @@ class CarDialog(QDialog):
         super().__init__(parent)
         self.car = car
         self.clients = get_clients_for_dropdown()
+        # Sort clients alphabetically by name
+        self.clients.sort(key=lambda c: c['name'].lower())
+        self._km_updating = False
         self.setup_ui()
         
         if car:
@@ -49,7 +52,9 @@ class CarDialog(QDialog):
             self.plate_input.setText(car["plate_number"])
             self.vin_input.setText(car["vin"])
             self.model_input.setText(car["model"])
-            self.kilometers_input.setValue(car.get("kilometers", 0))
+            km_value = car.get("kilometers", 0)
+            if km_value > 0:
+                self.kilometers_input.setText(self.format_kilometers(km_value))
         else:
             self.setWindowTitle("Add Car")
     
@@ -86,10 +91,9 @@ class CarDialog(QDialog):
         self.model_input.setPlaceholderText("Enter model (e.g., Audi A4)")
         form_layout.addRow("Model:", self.model_input)
         
-        self.kilometers_input = QSpinBox()
-        self.kilometers_input.setRange(0, 9999999)
-        self.kilometers_input.setSuffix(" km")
-        self.kilometers_input.setValue(0)
+        self.kilometers_input = QLineEdit()
+        self.kilometers_input.setPlaceholderText("e.g. 120 000")
+        self.kilometers_input.textChanged.connect(self.on_km_text_changed)
         form_layout.addRow("Kilometers:", self.kilometers_input)
         
         layout.addLayout(form_layout)
@@ -110,36 +114,125 @@ class CarDialog(QDialog):
         
         layout.addLayout(button_layout)
     
+    def on_km_text_changed(self, text):
+        """Handle kilometers input change with formatting."""
+        if self._km_updating:
+            return
+        
+        self._km_updating = True
+        
+        # Get cursor position before formatting
+        cursor_pos = self.kilometers_input.cursorPosition()
+        old_text = text
+        
+        # Remove all non-digit characters
+        digits_only = ''.join(c for c in text if c.isdigit())
+        
+        # Format with thousand separators
+        if digits_only:
+            formatted = self.format_kilometers(int(digits_only))
+        else:
+            formatted = ""
+        
+        # Calculate new cursor position
+        # Count how many digits were before the cursor in old text
+        digits_before_cursor = sum(1 for c in old_text[:cursor_pos] if c.isdigit())
+        
+        # Find where to place cursor in new formatted text
+        new_cursor_pos = 0
+        digit_count = 0
+        for i, c in enumerate(formatted):
+            if digit_count >= digits_before_cursor:
+                break
+            if c.isdigit():
+                digit_count += 1
+            new_cursor_pos = i + 1
+        
+        # Update the text
+        self.kilometers_input.setText(formatted)
+        self.kilometers_input.setCursorPosition(new_cursor_pos)
+        
+        self._km_updating = False
+    
+    def format_kilometers(self, value) -> str:
+        """Format a number with thousand separators (spaces)."""
+        try:
+            num = int(value)
+            # Format with spaces as thousand separators
+            formatted = f"{num:,}".replace(",", " ")
+            return formatted
+        except (ValueError, TypeError):
+            return str(value) if value else ""
+    
+    def parse_kilometers(self, text: str) -> int:
+        """Parse formatted kilometers text to raw number."""
+        # Remove all spaces and non-digit characters
+        digits = ''.join(c for c in text if c.isdigit())
+        try:
+            return int(digits) if digits else 0
+        except ValueError:
+            return 0
+    
     def validate_and_accept(self):
         """Validate input and accept dialog."""
         client_id = self.client_combo.currentData()
         plate_number = self.plate_input.text().strip()
         vin = self.vin_input.text().strip()
         model = self.model_input.text().strip()
+        kilometers_text = self.kilometers_input.text().strip()
         
+        # Validate client selection
         if not client_id:
-            QMessageBox.warning(self, "Validation Error", "Please select a client.")
+            show_warning(self, "Validation Error", "Please select a client.")
             self.client_combo.setFocus()
             return
         
+        # Validate plate number
         if not plate_number:
-            QMessageBox.warning(self, "Validation Error", "Plate number is required.")
+            show_warning(self, "Validation Error", "Plate number is required.")
             self.plate_input.setFocus()
             return
         
+        # Plate number must contain at least one dash
+        if '-' not in plate_number:
+            show_warning(self, "Validation Error", "Plate number must contain at least one dash (e.g., ABC-1234).")
+            self.plate_input.setFocus()
+            return
+        
+        # Plate number cannot be only numeric (excluding dashes/spaces)
+        plate_alphanumeric = ''.join(c for c in plate_number if c.isalnum())
+        if plate_alphanumeric.isdigit():
+            show_warning(self, "Validation Error", "Plate number cannot contain only numbers. It must include letters.")
+            self.plate_input.setFocus()
+            return
+        
+        # Validate VIN
         if not vin:
-            QMessageBox.warning(self, "Validation Error", "VIN is required.")
+            show_warning(self, "Validation Error", "VIN is required.")
             self.vin_input.setFocus()
             return
         
         if len(vin) != 17:
-            QMessageBox.warning(self, "Validation Error", "VIN must be exactly 17 characters.")
+            show_warning(self, "Validation Error", "VIN must be exactly 17 characters.")
             self.vin_input.setFocus()
             return
         
+        # Validate model
         if not model:
-            QMessageBox.warning(self, "Validation Error", "Model is required.")
+            show_warning(self, "Validation Error", "Model is required.")
             self.model_input.setFocus()
+            return
+        
+        # Validate kilometers
+        if not kilometers_text:
+            show_warning(self, "Validation Error", "Kilometers is required.")
+            self.kilometers_input.setFocus()
+            return
+        
+        kilometers_value = self.parse_kilometers(kilometers_text)
+        if kilometers_value < 0:
+            show_warning(self, "Validation Error", "Kilometers must be a positive number.")
+            self.kilometers_input.setFocus()
             return
         
         self.accept()
@@ -151,7 +244,7 @@ class CarDialog(QDialog):
             "plate_number": self.plate_input.text().strip().upper(),
             "vin": self.vin_input.text().strip().upper(),
             "model": self.model_input.text().strip(),
-            "kilometers": self.kilometers_input.value(),
+            "kilometers": self.parse_kilometers(self.kilometers_input.text()),
         }
 
 
@@ -329,15 +422,15 @@ class CarsPage(QWidget):
                 self.search_input.clear()
             except Exception as e:
                 if "UNIQUE constraint failed" in str(e):
-                    QMessageBox.warning(self, "Error", "A car with this VIN already exists.")
+                    show_warning(self, "Error", "A car with this VIN already exists.")
                 else:
-                    QMessageBox.warning(self, "Error", f"Failed to add car: {str(e)}")
+                    show_critical(self, "Error", f"Failed to add car: {str(e)}")
     
     def edit_car(self):
         """Open dialog to edit the selected car."""
         car = self.get_selected_car()
         if not car:
-            QMessageBox.warning(self, "No Selection", "Please select a car to edit.")
+            show_warning(self, "No Selection", "Please select a car to edit.")
             return
         
         dialog = CarDialog(self, car)
@@ -356,15 +449,15 @@ class CarsPage(QWidget):
                 self.filter_cars(self.search_input.text())
             except Exception as e:
                 if "UNIQUE constraint failed" in str(e):
-                    QMessageBox.warning(self, "Error", "A car with this VIN already exists.")
+                    show_warning(self, "Error", "A car with this VIN already exists.")
                 else:
-                    QMessageBox.warning(self, "Error", f"Failed to update car: {str(e)}")
+                    show_critical(self, "Error", f"Failed to update car: {str(e)}")
     
     def delete_car(self):
         """Delete the selected car."""
         car = self.get_selected_car()
         if not car:
-            QMessageBox.warning(self, "No Selection", "Please select a car to delete.")
+            show_warning(self, "No Selection", "Please select a car to delete.")
             return
         
         msg_box = QMessageBox(self)
@@ -406,9 +499,9 @@ class CarsPage(QWidget):
                 self.filter_cars(self.search_input.text())
             except Exception as e:
                 if "UNIQUE constraint failed" in str(e):
-                    QMessageBox.warning(self, "Error", "A car with this VIN already exists.")
+                    show_warning(self, "Error", "A car with this VIN already exists.")
                 else:
-                    QMessageBox.warning(self, "Error", f"Failed to update car: {str(e)}")
+                    show_critical(self, "Error", f"Failed to update car: {str(e)}")
     
     def delete_car_by_id(self, car_id: int):
         """Delete a car by ID (used by row action buttons)."""

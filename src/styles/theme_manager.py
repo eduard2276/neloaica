@@ -445,3 +445,52 @@ class ThemeManager:
                 border-color: {self._colors['border']};
             }}
         """
+    
+    def calendar_dialog(self) -> str:
+        """Style for calendar picker dialog."""
+        return f"""
+            QDialog {{
+                background-color: {self._colors['bg_primary']};
+            }}
+        """
+    
+    def calendar(self) -> str:
+        """Style for calendar widget."""
+        return """
+            QCalendarWidget QWidget {
+                color: #2c3e50;
+                font-size: 14px;
+            }
+            QCalendarWidget QAbstractItemView {
+                color: #2c3e50;
+                background-color: white;
+                selection-background-color: #1a3a6e;
+                selection-color: white;
+            }
+            QCalendarWidget QAbstractItemView::item:hover {
+                background-color: #d0d8e8;
+                border-radius: 4px;
+            }
+            QCalendarWidget QToolButton {
+                color: #1a3a6e;
+                font-size: 14px;
+                font-weight: bold;
+                background-color: white;
+                border: none;
+                padding: 5px;
+            }
+            QCalendarWidget QToolButton:hover {
+                background-color: #d0d8e8;
+                border-radius: 4px;
+            }
+            QCalendarWidget QSpinBox {
+                color: #1a3a6e;
+                font-size: 14px;
+                font-weight: bold;
+                background-color: white;
+            }
+            QCalendarWidget #qt_calendar_navigationbar {
+                background-color: #f0f2f5;
+                padding: 5px;
+            }
+        """
