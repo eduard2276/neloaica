@@ -1,11 +1,13 @@
 """Excel export functionality for receipts."""
 
-import os
 import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
 from openpyxl import load_workbook
+from openpyxl.drawing.image import Image as XlImage
+from openpyxl.utils.units import cm_to_EMU
 
 from src.database.models.defects import get_defect_by_id
 from src.database.models.parts import get_part_by_id
@@ -20,6 +22,7 @@ EXPORTS_DIR = PROJECT_ROOT / "exports" / "receipts"
 
 # Template file name
 TEMPLATE_FILE = "Template-deviz.xlsx"
+LOGO_FILE = TEMPLATES_DIR / "images" / "Neloaica_logo.png"
 
 
 def ensure_exports_dir():
@@ -80,6 +83,21 @@ def generate_receipt_excel(receipt_data: dict) -> str:
     workbook = load_workbook(output_path)
     sheet = workbook.active  # Get Sheet 1
     
+    # Insert logo into D5:E9 area (temp copy avoids OneDrive file locks)
+    tmp_logo = None
+    if LOGO_FILE.exists():
+        tmp_logo = Path(tempfile.gettempdir()) / "neloaica_logo_tmp.png"
+        shutil.copy2(LOGO_FILE, tmp_logo)
+        logo = XlImage(str(tmp_logo))
+        # Target box D5:E9 is roughly 4.5 cm wide × 2.8 cm tall.
+        # Logo native aspect ratio is ~2.19:1 (1287×587).
+        # Scale to 4.0 cm wide → height = 4.0 / 2.19 ≈ 1.83 cm, centered with margin.
+        logo_w_cm = 6.0
+        logo_h_cm = logo_w_cm * logo.height / logo.width
+        logo.width = cm_to_EMU(logo_w_cm) / 9525
+        logo.height = cm_to_EMU(logo_h_cm) / 9525
+        sheet.add_image(logo, "D5")
+
     # B8: Receipt number and date
     receipt_date = receipt_data.get('date', '')
     sheet['B8'] = f"                                     Nr. {receipt_number}   Din data {receipt_date}"
@@ -258,6 +276,10 @@ def generate_receipt_excel(receipt_data: dict) -> str:
     # Save the workbook
     workbook.save(output_path)
     workbook.close()
+    
+    # Clean up temp logo copy
+    if tmp_logo and tmp_logo.exists():
+        tmp_logo.unlink(missing_ok=True)
     
     return str(output_path), warning_messages
 
