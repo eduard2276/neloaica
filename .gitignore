@@ -37,3 +37,9 @@ Thumbs.db
 *.jsc
 # Exports
 exports/
+
+# Database
+*.db
+
+# Database backups
+backups/

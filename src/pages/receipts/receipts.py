@@ -13,13 +13,15 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QEvent, Qt
 
 from .receipt_info import ReceiptInfoWidget
+from .estimates_section import EstimatesSectionWidget
 from .defects_section import DefectsSectionWidget
 from .parts_section import PartsSectionWidget
 from .labor_section import LaborSectionWidget
 from .billable_parts_section import BillablePartsSectionWidget
-from src.services import generate_receipt_excel, template_exists
+from src.services import generate_receipt_excel, template_exists, create_backup
 from src.database.models.cars import update_car_kilometers
 from src.styles import theme
+from src.utils import show_warning, show_info, show_critical
 
 
 class ReceiptsPage(QWidget):
@@ -63,6 +65,15 @@ class ReceiptsPage(QWidget):
         self.receipt_info_widget = ReceiptInfoWidget()
         self.receipt_info_widget.data_changed.connect(self.on_receipt_info_changed)
         content_layout.addWidget(self.receipt_info_widget)
+
+        # Estimates section
+        self.estimates_widget = EstimatesSectionWidget("Estimates")
+        self.estimates_widget.estimates_changed.connect(self.on_estimates_changed)
+        content_layout.addWidget(self.estimates_widget)
+        self.on_estimates_changed(
+            self.estimates_widget.get_estimate_cost(),
+            self.estimates_widget.get_estimated_final_date(),
+        )
         
         # Defects section
         self.defects_widget = DefectsSectionWidget("Defects by the Client")
@@ -155,6 +166,12 @@ class ReceiptsPage(QWidget):
         # Update receipt_data with defects
         self.receipt_data['defects'] = defect_ids
         self.update_receipt_data()
+
+    def on_estimates_changed(self, estimate_cost: float, estimated_final_date: str):
+        """Handle estimates section data change."""
+        self.receipt_data['estimate_cost'] = estimate_cost
+        self.receipt_data['estimated_final_date'] = estimated_final_date
+        self.update_receipt_data()
     
     def on_discovered_defects_changed(self, defect_ids: list):
         """Handle discovered defects list change."""
@@ -216,7 +233,7 @@ class ReceiptsPage(QWidget):
         """Handle generate button click - export receipt to Excel."""
         # Check if template exists
         if not template_exists():
-            QMessageBox.warning(
+            show_warning(
                 self,
                 "Template Not Found",
                 "The Excel template 'Template-Deviz.xlsx' was not found in the templates folder.\n\n"
@@ -227,7 +244,7 @@ class ReceiptsPage(QWidget):
         
         # Check if client is selected
         if not self.receipt_data.get('client_id'):
-            QMessageBox.warning(
+            show_warning(
                 self,
                 "Missing Information",
                 "Please select a client before generating the receipt."
@@ -235,6 +252,10 @@ class ReceiptsPage(QWidget):
             return
         
         try:
+            # Create backup before generating receipt (critical operation)
+            print("[INFO] Creating pre-receipt backup...")
+            create_backup("pre-receipt")
+            
             # Update car kilometers in database if changed
             car_id = self.receipt_data.get('car_id')
             kilometers = self.receipt_data.get('kilometers', '')
@@ -255,20 +276,12 @@ class ReceiptsPage(QWidget):
             if warnings:
                 message += "\n\n" + "\n".join(warnings)
             
-            QMessageBox.information(
-                self,
-                "Receipt Generated",
-                message
-            )
+            show_info(self, "Receipt Generated", message)
             
             # Optionally open the file
             import os
             os.startfile(output_path)
             
         except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Error",
-                f"Failed to generate receipt:\n{str(e)}"
-            )
+            show_critical(self, "Error", f"Failed to generate receipt:\n{str(e)}")
 

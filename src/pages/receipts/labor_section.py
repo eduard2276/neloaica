@@ -19,6 +19,7 @@ from PySide6.QtCore import Qt, Signal, QSize
 from src.database.models.labor import get_all_labor, add_labor as add_labor_to_db
 from src.widgets import NoScrollComboBox
 from src.styles import theme
+from src.utils import show_warning, show_info, show_critical
 
 
 class AddLaborDialog(QDialog):
@@ -81,7 +82,7 @@ class AddLaborDialog(QDialog):
     def accept(self):
         """Validate and accept the dialog."""
         if not self.get_service_name():
-            QMessageBox.warning(self, "Validation Error", "Service name is required.")
+            show_warning(self, "Validation Error", "Service name is required.")
             self.service_name_edit.setFocus()
             return
         
@@ -319,17 +320,9 @@ class LaborSectionWidget(QWidget):
                 # Reload data to include new labor
                 self.load_data(restore_state=True)
                 
-                QMessageBox.information(
-                    self,
-                    "Success",
-                    f"Labor service '{service_name}' added successfully!"
-                )
+                show_info(self, "Success", f"Labor service '{service_name}' added successfully!")
             except Exception as e:
-                QMessageBox.warning(
-                    self,
-                    "Error",
-                    f"Failed to add labor service: {str(e)}"
-                )
+                show_critical(self, "Error", f"Failed to add labor service: {str(e)}")
     
     def on_cost_text_changed(self, text):
         """Format cost input with thousand separators, allowing decimals."""

@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from src.database.models import get_tva, update_tva, get_receipt_number, update_receipt_number
+from src.services import create_backup, get_all_backups
 from src.styles.theme_manager import ThemeManager
 
 
@@ -91,6 +92,29 @@ class SettingsPage(QWidget):
         
         buttons_layout.addStretch()
         layout.addLayout(buttons_layout)
+        
+        # Database Backup Section
+        backup_group = QGroupBox("Database Backup")
+        backup_group.setStyleSheet(self.theme.groupbox())
+        backup_layout = QVBoxLayout()
+        backup_layout.setSpacing(15)
+        
+        backup_info = QLabel("Create a backup of your database to protect your data.")
+        backup_info.setStyleSheet("color: #7f8c8d; font-size: 13px;")
+        backup_layout.addWidget(backup_info)
+        
+        backup_button_layout = QHBoxLayout()
+        backup_btn = QPushButton("💾 Create Backup Now")
+        backup_btn.setStyleSheet(self.theme.button("primary"))
+        backup_btn.setMinimumHeight(40)
+        backup_btn.setMaximumWidth(250)
+        backup_btn.clicked.connect(self.create_manual_backup)
+        backup_button_layout.addWidget(backup_btn)
+        backup_button_layout.addStretch()
+        
+        backup_layout.addLayout(backup_button_layout)
+        backup_group.setLayout(backup_layout)
+        layout.addWidget(backup_group)
         
         layout.addStretch()
     
@@ -234,3 +258,22 @@ class SettingsPage(QWidget):
         msg.setText("Settings have been saved successfully!")
         msg.setStyleSheet(self.theme.message_box_confirm())
         msg.exec()
+    
+    def create_manual_backup(self):
+        """Create a manual database backup."""
+        backup_path, success = create_backup("manual")
+        
+        if success:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setWindowTitle("Backup Created")
+            msg.setText(f"Database backup created successfully!\n\nLocation:\n{backup_path}")
+            msg.setStyleSheet(self.theme.message_box_confirm())
+            msg.exec()
+        else:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setWindowTitle("Backup Failed")
+            msg.setText("Failed to create database backup. Please try again.")
+            msg.setStyleSheet(self.theme.message_box_confirm())
+            msg.exec()

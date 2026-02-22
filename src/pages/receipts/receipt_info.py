@@ -308,51 +308,14 @@ class ReceiptInfoWidget(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("Select Date")
         dialog.setMinimumSize(350, 300)
-        dialog.setStyleSheet("QDialog { background-color: white; }")
+        dialog.setStyleSheet(theme.calendar_dialog())
         
         layout = QVBox(dialog)
         
         calendar = QCalendarWidget()
         calendar.setSelectedDate(self._selected_date)
         calendar.setGridVisible(True)
-        calendar.setStyleSheet("""
-            QCalendarWidget QWidget {
-                color: #2c3e50;
-                font-size: 14px;
-            }
-            QCalendarWidget QAbstractItemView {
-                color: #2c3e50;
-                background-color: white;
-                selection-background-color: #1a3a6e;
-                selection-color: white;
-            }
-            QCalendarWidget QAbstractItemView::item:hover {
-                background-color: #d0d8e8;
-                border-radius: 4px;
-            }
-            QCalendarWidget QToolButton {
-                color: #1a3a6e;
-                font-size: 14px;
-                font-weight: bold;
-                background-color: white;
-                border: none;
-                padding: 5px;
-            }
-            QCalendarWidget QToolButton:hover {
-                background-color: #d0d8e8;
-                border-radius: 4px;
-            }
-            QCalendarWidget QSpinBox {
-                color: #1a3a6e;
-                font-size: 14px;
-                font-weight: bold;
-                background-color: white;
-            }
-            QCalendarWidget #qt_calendar_navigationbar {
-                background-color: #f0f2f5;
-                padding: 5px;
-            }
-        """)
+        calendar.setStyleSheet(theme.calendar())
         # Hide week numbers
         calendar.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
         

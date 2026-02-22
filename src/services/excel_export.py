@@ -66,10 +66,11 @@ def generate_receipt_excel(receipt_data: dict) -> str:
     if not template_path.exists():
         raise FileNotFoundError(f"Template file not found: {template_path}")
     
-    # Generate unique filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    client_name = receipt_data.get('client_name', 'Unknown').replace(' ', '_')
-    output_filename = f"Deviz_{client_name}_{timestamp}.xlsx"
+    # Generate filename: deviz_<receipt_number>_<plate_number>_<year>
+    receipt_number = get_receipt_number()
+    plate_number = receipt_data.get('plate_number', 'Unknown').replace(' ', '_')
+    year = datetime.now().strftime("%Y")
+    output_filename = f"deviz_{receipt_number}_{plate_number}_{year}.xlsx"
     output_path = EXPORTS_DIR / output_filename
     
     # Copy template to output location
@@ -79,13 +80,20 @@ def generate_receipt_excel(receipt_data: dict) -> str:
     workbook = load_workbook(output_path)
     sheet = workbook.active  # Get Sheet 1
     
-    # B2: Receipt number and date
-    receipt_number = get_receipt_number()
+    # B8: Receipt number and date
     receipt_date = receipt_data.get('date', '')
     sheet['B8'] = f"                                     Nr. {receipt_number}   Din data {receipt_date}"
     
     # Increment receipt number for the next receipt
     update_receipt_number(receipt_number + 1)
+    
+    # A1: Estimated repair value
+    estimated_cost = receipt_data.get('estimate_cost', 0.0)
+    sheet['A29'] = f"Valoarea estimativa reparatie:    {estimated_cost} LEI                 Intocmit:  CORAS DIANA                        Accept client:"
+    
+    # A31: Estimated repair time
+    estimated_final_date = receipt_data.get('estimated_final_date', '')
+    sheet['A31'] = f"Timp estimativ reparatie:      {estimated_final_date}                                Semnatura:                              Semnatura:"
     
     # Fill in client data
     # B10: Client name

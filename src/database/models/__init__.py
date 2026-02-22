@@ -3,7 +3,6 @@
 # Import all client functions
 from .clients import (
     create_clients_table,
-    populate_clients_mock_data,
     get_all_clients,
     get_client_by_id,
     add_client,
@@ -16,7 +15,6 @@ from .clients import (
 # Import all car functions
 from .cars import (
     create_cars_table,
-    populate_cars_mock_data,
     get_all_cars,
     get_car_by_id,
     add_car,
@@ -29,7 +27,6 @@ from .cars import (
 # Import all labor functions
 from .labor import (
     create_labor_table,
-    populate_labor_mock_data,
     get_all_labor,
     get_labor_by_id,
     add_labor,
@@ -41,7 +38,6 @@ from .labor import (
 # Import all parts functions
 from .parts import (
     create_parts_table,
-    populate_parts_mock_data,
     get_all_parts,
     get_part_by_id,
     add_part,
@@ -53,7 +49,6 @@ from .parts import (
 # Import all defects functions
 from .defects import (
     create_defects_table,
-    populate_defects_mock_data,
     get_all_defects,
     get_defect_by_id,
     add_defect,
@@ -75,7 +70,6 @@ from .settings import (
 __all__ = [
     # Initialization
     "init_database",
-    "populate_mock_data",
     # Client functions
     "get_all_clients",
     "get_client_by_id",
@@ -132,10 +126,3 @@ def init_database():
     create_settings_table()
 
 
-def populate_mock_data():
-    """Populate all tables with mock data."""
-    populate_clients_mock_data()
-    populate_cars_mock_data()
-    populate_labor_mock_data()
-    populate_parts_mock_data()
-    populate_defects_mock_data()

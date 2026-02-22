@@ -26,6 +26,7 @@ from src.database.models import (
     delete_client,
 )
 from src.styles import theme
+from src.utils import show_warning
 
 
 class ClientDialog(QDialog):
@@ -91,15 +92,21 @@ class ClientDialog(QDialog):
         """Validate input and accept dialog."""
         first_name = self.first_name_input.text().strip()
         last_name = self.last_name_input.text().strip()
+        address = self.address_input.text().strip()
         
         if not first_name:
-            QMessageBox.warning(self, "Validation Error", "First name is required.")
+            show_warning(self, "Validation Error", "First name is required.")
             self.first_name_input.setFocus()
             return
         
         if not last_name:
-            QMessageBox.warning(self, "Validation Error", "Last name is required.")
+            show_warning(self, "Validation Error", "Last name is required.")
             self.last_name_input.setFocus()
+            return
+        
+        if not address:
+            show_warning(self, "Validation Error", "Address is required.")
+            self.address_input.setFocus()
             return
         
         self.accept()
@@ -277,7 +284,7 @@ class ClientsPage(QWidget):
         """Open dialog to edit the selected client."""
         client = self.get_selected_client()
         if not client:
-            QMessageBox.warning(self, "No Selection", "Please select a client to edit.")
+            show_warning(self, "No Selection", "Please select a client to edit.")
             return
         
         dialog = ClientDialog(self, client)
@@ -291,7 +298,7 @@ class ClientsPage(QWidget):
         """Delete the selected client."""
         client = self.get_selected_client()
         if not client:
-            QMessageBox.warning(self, "No Selection", "Please select a client to delete.")
+            show_warning(self, "No Selection", "Please select a client to delete.")
             return
         
         msg_box = QMessageBox(self)
