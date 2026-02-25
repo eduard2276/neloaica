@@ -143,8 +143,16 @@ class ReceiptInfoWidget(QWidget):
         
         if restore_state and self.saved_client_id is not None:
             self.restore_form_state()
+        else:
+            self.car_combo.clear()
+            self.car_combo.addItem("Select a car", None)
+            self.car_combo.setEnabled(False)
+            self.clear_car_details()
         
         self.client_combo.blockSignals(False)
+        
+        if not restore_state:
+            self.emit_data_changed()
     
     def save_form_state(self):
         """Save current form state."""

@@ -79,6 +79,12 @@ class AddPartDialog(QDialog):
         """Get the part name."""
         return self.part_name_edit.text().strip()
 
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.accept()
+        else:
+            super().keyPressEvent(event)
+
     def accept(self):
         """Validate and accept the dialog."""
         if not self.get_part_name():
@@ -165,6 +171,9 @@ class BillablePartsSectionWidget(QWidget):
         # Store current selections if restoring
         if restore_state:
             current_parts = self.selected_parts.copy()
+        else:
+            self.selected_parts = []
+            self.parts_list.clear()
         
         # Load parts
         self.all_parts = get_all_parts()
@@ -182,7 +191,6 @@ class BillablePartsSectionWidget(QWidget):
         
         self.part_combo.blockSignals(False)
         
-        # Restore selections if requested
         if restore_state and current_parts:
             self.parts_list.clear()
             self.selected_parts = []
@@ -196,6 +204,9 @@ class BillablePartsSectionWidget(QWidget):
                         part_item.get("units", 0),
                         part_item.get("price_per_unit", 0.0)
                     )
+        elif not restore_state:
+            self.update_list_style()
+            self.emit_parts_changed()
     
     def on_part_changed(self, index):
         """Handle part combo box selection."""

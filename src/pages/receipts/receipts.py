@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QGroupBox,
 )
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QDate, Qt
 
 from .receipt_info import ReceiptInfoWidget
 from .estimates_section import EstimatesSectionWidget
@@ -118,10 +118,17 @@ class ReceiptsPage(QWidget):
         grand_total_group.setLayout(grand_total_layout)
         content_layout.addWidget(grand_total_group)
         
-        # Generate button section
+        # Buttons section
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 20, 0, 0)
         button_layout.addStretch()
+        
+        self.reset_button = QPushButton("🔄 New Receipt")
+        self.reset_button.setStyleSheet(theme.button("primary"))
+        self.reset_button.setMinimumHeight(50)
+        self.reset_button.setMinimumWidth(200)
+        self.reset_button.clicked.connect(self.on_reset_clicked)
+        button_layout.addWidget(self.reset_button)
         
         self.generate_button = QPushButton("📄 Generate Receipt")
         self.generate_button.setStyleSheet(theme.button("success"))
@@ -144,16 +151,16 @@ class ReceiptsPage(QWidget):
     def showEvent(self, event):
         """Called when the page is shown. Reload data to reflect any changes."""
         super().showEvent(event)
-        # Only reload if we've been shown before (not the first time)
-        if hasattr(self, '_first_show'):
-            self.receipt_info_widget.load_data(restore_state=True)
-            self.defects_widget.load_data(restore_state=True)
-            self.discovered_defects_widget.load_data(restore_state=True)
-            self.parts_widget.load_data(restore_state=True)
-            self.labor_widget.load_data(restore_state=True)
-            self.billable_parts_widget.load_data(restore_state=True)
-        else:
-            self._first_show = True
+        self._reload_all_data(restore_state=True)
+
+    def _reload_all_data(self, restore_state=True):
+        """Reload all section data from the database."""
+        self.receipt_info_widget.load_data(restore_state=restore_state)
+        self.defects_widget.load_data(restore_state=restore_state)
+        self.discovered_defects_widget.load_data(restore_state=restore_state)
+        self.parts_widget.load_data(restore_state=restore_state)
+        self.labor_widget.load_data(restore_state=restore_state)
+        self.billable_parts_widget.load_data(restore_state=restore_state)
     
     def on_receipt_info_changed(self, data: dict):
         """Handle receipt information data change."""
@@ -226,23 +233,46 @@ class ReceiptsPage(QWidget):
     
     def update_receipt_data(self):
         """Update and log the complete receipt data object."""
-        # For debugging/verification - you can remove this later
-        print(f"Receipt data updated: {self.receipt_data}")
     
+    def on_reset_clicked(self):
+        """Reset the entire receipt form to a blank state."""
+        self.receipt_data = {}
+
+        # Re-fetch all data from database and reset selections
+        self._reload_all_data(restore_state=False)
+
+        # Reset estimates section
+        self.estimates_widget.estimate_cost_input.clear()
+        self.estimates_widget._selected_date = QDate.currentDate()
+        self.estimates_widget.date_display.setText(
+            self.estimates_widget._selected_date.toString("dd.MM.yyyy")
+        )
+        self.estimates_widget.emit_estimates_changed()
+
+        # Reset grand total
+        self.grand_total_value.setText("0.00 Lei")
+
+        show_info(self, "Reset", "All fields have been cleared.")
+
     def on_generate_clicked(self):
         """Handle generate button click - export receipt to Excel."""
-        # Check if template exists
+        try:
+            self._do_generate()
+        except Exception as e:
+            import traceback
+            show_critical(self, "Error", f"Failed to generate receipt:\n{traceback.format_exc()}")
+
+    def _do_generate(self):
+        """Internal receipt generation logic."""
         if not template_exists():
             show_warning(
                 self,
                 "Template Not Found",
-                "The Excel template 'Template-Deviz.xlsx' was not found in the templates folder.\n\n"
-                "Please add the template file to:\n"
-                "templates/Template-Deviz.xlsx"
+                "The Excel template was not found.\n\n"
+                "Please reinstall the application or contact support."
             )
             return
-        
-        # Check if client is selected
+
         if not self.receipt_data.get('client_id'):
             show_warning(
                 self,
@@ -250,38 +280,25 @@ class ReceiptsPage(QWidget):
                 "Please select a client before generating the receipt."
             )
             return
-        
-        try:
-            # Create backup before generating receipt (critical operation)
-            print("[INFO] Creating pre-receipt backup...")
-            create_backup("pre-receipt")
-            
-            # Update car kilometers in database if changed
-            car_id = self.receipt_data.get('car_id')
-            kilometers = self.receipt_data.get('kilometers', '')
-            if car_id and kilometers:
-                try:
-                    km_value = int(kilometers)
-                    update_car_kilometers(car_id, km_value)
-                except ValueError:
-                    pass  # Ignore if kilometers is not a valid number
-            
-            # Generate the Excel file
-            output_path, warnings = generate_receipt_excel(self.receipt_data)
-            
-            # Prepare success message
-            message = f"Receipt has been generated successfully!\n\nFile saved to:\n{output_path}"
-            
-            # Add warnings if any
-            if warnings:
-                message += "\n\n" + "\n".join(warnings)
-            
-            show_info(self, "Receipt Generated", message)
-            
-            # Optionally open the file
-            import os
-            os.startfile(output_path)
-            
-        except Exception as e:
-            show_critical(self, "Error", f"Failed to generate receipt:\n{str(e)}")
+
+        create_backup("pre-receipt")
+
+        car_id = self.receipt_data.get('car_id')
+        kilometers = self.receipt_data.get('kilometers', '')
+        if car_id and kilometers:
+            try:
+                update_car_kilometers(car_id, int(kilometers))
+            except ValueError:
+                pass
+
+        output_path, warnings = generate_receipt_excel(self.receipt_data)
+
+        message = f"Receipt has been generated successfully!\n\nFile saved to:\n{output_path}"
+        if warnings:
+            message += "\n\n" + "\n".join(warnings)
+
+        show_info(self, "Receipt Generated", message)
+
+        import os
+        os.startfile(output_path)
 

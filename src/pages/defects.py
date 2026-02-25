@@ -97,6 +97,12 @@ class DefectDialog(QDialog):
             "defect_name": self.defect_name_edit.text().strip(),
         }
 
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.accept()
+        else:
+            super().keyPressEvent(event)
+
     def accept(self):
         """Validate and accept the dialog."""
         data = self.get_data()

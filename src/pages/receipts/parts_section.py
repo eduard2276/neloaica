@@ -79,6 +79,12 @@ class AddPartDialog(QDialog):
         """Get the part name."""
         return self.part_name_edit.text().strip()
 
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.accept()
+        else:
+            super().keyPressEvent(event)
+
     def accept(self):
         """Validate and accept the dialog."""
         if not self.get_part_name():
@@ -146,6 +152,10 @@ class PartsSectionWidget(QWidget):
     
     def load_data(self, restore_state=False):
         """Load parts from database."""
+        if not restore_state:
+            self.selected_parts = []
+            self.parts_list.clear()
+
         # Get all parts
         self.all_parts = get_all_parts()
         
@@ -157,6 +167,10 @@ class PartsSectionWidget(QWidget):
         for part in self.all_parts:
             if part['id'] not in self.selected_parts:
                 self.part_combo.addItem(part['part_name'], part['id'])
+
+        if not restore_state:
+            self.update_list_style()
+            self.parts_changed.emit([])
     
     def on_part_changed(self, index):
         """Handle part selection change."""

@@ -13,12 +13,12 @@ from src.database.models.defects import get_defect_by_id
 from src.database.models.parts import get_part_by_id
 from src.database.models.labor import get_labor_by_id
 from src.database.models.settings import get_tva, get_receipt_number, update_receipt_number
+from src.paths import get_app_dir, get_bundle_dir
 
 
-# Get project root directory
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-TEMPLATES_DIR = PROJECT_ROOT / "templates"
-EXPORTS_DIR = PROJECT_ROOT / "exports" / "receipts"
+# Templates are bundled read-only assets; exports live next to the exe/project
+TEMPLATES_DIR = get_bundle_dir() / "templates"
+EXPORTS_DIR = get_app_dir() / "exports" / "receipts"
 
 # Template file name
 TEMPLATE_FILE = "Template-deviz.xlsx"
@@ -47,25 +47,7 @@ def generate_receipt_excel(receipt_data: dict) -> str:
     # Ensure exports directory exists
     ensure_exports_dir()
     
-    # Check if template exists
     template_path = TEMPLATES_DIR / TEMPLATE_FILE
-    
-    # Debug logging
-    print(f"[DEBUG] PROJECT_ROOT: {PROJECT_ROOT}")
-    print(f"[DEBUG] TEMPLATES_DIR: {TEMPLATES_DIR}")
-    print(f"[DEBUG] TEMPLATE_FILE: {TEMPLATE_FILE}")
-    print(f"[DEBUG] Full template_path: {template_path}")
-    print(f"[DEBUG] template_path.exists(): {template_path.exists()}")
-    print(f"[DEBUG] template_path.is_file(): {template_path.is_file() if template_path.exists() else 'N/A'}")
-    
-    # List files in templates directory
-    if TEMPLATES_DIR.exists():
-        print(f"[DEBUG] Files in TEMPLATES_DIR:")
-        for file in TEMPLATES_DIR.iterdir():
-            print(f"  - {file.name}")
-    else:
-        print(f"[DEBUG] TEMPLATES_DIR does not exist!")
-    
     if not template_path.exists():
         raise FileNotFoundError(f"Template file not found: {template_path}")
     
@@ -291,24 +273,4 @@ def get_template_path() -> Path:
 
 def template_exists() -> bool:
     """Check if the template file exists."""
-    template_path = get_template_path()
-    
-    # Debug logging
-    print(f"[DEBUG template_exists()] PROJECT_ROOT: {PROJECT_ROOT}")
-    print(f"[DEBUG template_exists()] TEMPLATES_DIR: {TEMPLATES_DIR}")
-    print(f"[DEBUG template_exists()] TEMPLATE_FILE: {TEMPLATE_FILE}")
-    print(f"[DEBUG template_exists()] template_path: {template_path}")
-    print(f"[DEBUG template_exists()] TEMPLATES_DIR.exists(): {TEMPLATES_DIR.exists()}")
-    
-    if TEMPLATES_DIR.exists():
-        print(f"[DEBUG template_exists()] Files in templates directory:")
-        try:
-            for file in TEMPLATES_DIR.iterdir():
-                print(f"  - {file.name}")
-        except Exception as e:
-            print(f"  Error listing files: {e}")
-    
-    exists = template_path.exists()
-    print(f"[DEBUG template_exists()] template_path.exists(): {exists}")
-    
-    return exists
+    return get_template_path().exists()
