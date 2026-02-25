@@ -79,6 +79,12 @@ class AddLaborDialog(QDialog):
         """Get the service name."""
         return self.service_name_edit.text().strip()
 
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.accept()
+        else:
+            super().keyPressEvent(event)
+
     def accept(self):
         """Validate and accept the dialog."""
         if not self.get_service_name():
@@ -169,6 +175,10 @@ class LaborSectionWidget(QWidget):
         if restore_state:
             current_labor = self.selected_labor.copy()
             current_total = self.total_cost_input.text()
+        else:
+            self.selected_labor = []
+            self.labor_list.clear()
+            self.total_cost_input.clear()
         
         # Load labor
         self.all_labor = get_all_labor()
@@ -185,7 +195,6 @@ class LaborSectionWidget(QWidget):
         
         self.labor_combo.blockSignals(False)
         
-        # Restore selections if requested
         if restore_state and current_labor:
             self.labor_list.clear()
             self.selected_labor = []
@@ -194,6 +203,9 @@ class LaborSectionWidget(QWidget):
                 if labor:
                     self.add_labor(labor_id, labor["service_name"])
             self.total_cost_input.setText(current_total)
+        elif not restore_state:
+            self.update_list_style()
+            self.emit_labor_changed()
     
     def on_labor_changed(self, index):
         """Handle labor combo box selection."""

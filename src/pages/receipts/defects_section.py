@@ -81,6 +81,12 @@ class AddDefectDialog(QDialog):
         """Get the defect name."""
         return self.defect_name_edit.text().strip()
 
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.accept()
+        else:
+            super().keyPressEvent(event)
+
     def accept(self):
         """Validate and accept the dialog."""
         if not self.get_defect_name():
@@ -151,6 +157,10 @@ class DefectsSectionWidget(QWidget):
     
     def load_data(self, restore_state=False):
         """Load defects from database."""
+        if not restore_state:
+            self.selected_defects = []
+            self.defects_list.clear()
+
         self.all_defects = get_all_defects()
         
         # Populate defects dropdown
@@ -160,6 +170,10 @@ class DefectsSectionWidget(QWidget):
             # Only add if not already selected
             if defect['id'] not in self.selected_defects:
                 self.defect_combo.addItem(defect['defect_name'], defect['id'])
+
+        if not restore_state:
+            self.update_list_style()
+            self.defects_changed.emit([])
     
     def on_defect_changed(self, index):
         """Handle defect selection change - automatically add to list."""
@@ -282,10 +296,8 @@ class DefectsSectionWidget(QWidget):
     def update_list_style(self):
         """Update list widget background based on item count."""
         if len(self.selected_defects) > 0:
-            # White background when items are present
             self.defects_list.setStyleSheet(theme.list_widget_with_items())
         else:
-            # Grey background when empty
             self.defects_list.setStyleSheet(theme.list_widget())
     
     def get_selected_defects(self) -> list:

@@ -88,6 +88,12 @@ class ClientDialog(QDialog):
         
         layout.addLayout(button_layout)
     
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.validate_and_accept()
+        else:
+            super().keyPressEvent(event)
+
     def validate_and_accept(self):
         """Validate input and accept dialog."""
         first_name = self.first_name_input.text().strip()

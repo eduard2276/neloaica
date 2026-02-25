@@ -24,15 +24,8 @@ class DatabaseConnection:
     
     def _get_db_path(self) -> Path:
         """Get the database file path (same folder as the application)."""
-        # Get the application's root directory
-        if getattr(sys, 'frozen', False):
-            # Running as compiled executable
-            app_dir = Path(sys.executable).parent
-        else:
-            # Running as script - use the project root (parent of src)
-            app_dir = Path(__file__).parent.parent.parent
-        
-        return app_dir / "neloaica.db"
+        from src.paths import get_app_dir
+        return get_app_dir() / "neloaica.db"
     
     def _connect(self):
         """Establish database connection."""

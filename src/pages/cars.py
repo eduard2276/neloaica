@@ -173,6 +173,12 @@ class CarDialog(QDialog):
         except ValueError:
             return 0
     
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.validate_and_accept()
+        else:
+            super().keyPressEvent(event)
+
     def validate_and_accept(self):
         """Validate input and accept dialog."""
         client_id = self.client_combo.currentData()

@@ -150,6 +150,27 @@ class ThemeManager:
             }}
         """
     
+    def groupbox_inactive(self) -> str:
+        """Style for group boxes when section has no data."""
+        return f"""
+            QGroupBox {{
+                font-size: 16px;
+                font-weight: bold;
+                color: #95a5a6;
+                border: 2px solid #d5d8dc;
+                border-radius: 8px;
+                margin-top: 10px;
+                padding: 20px;
+                background-color: #f0f0f0;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 5px 10px;
+                background-color: #f0f0f0;
+            }}
+        """
+
     def list_widget(self) -> str:
         """Style for list widgets (empty state - grey background)."""
         return f"""

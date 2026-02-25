@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-from src.pages import CarsPage, ClientsPage, DashboardPage, DefectsPage, LaborPage, PartsPage, ReceiptsPage, SettingsPage
+from src.pages import CarsPage, ClientsPage, DefectsPage, LaborPage, PartsPage, ReceiptsPage, SettingsPage
 from src.database import init_database
 from src.services import create_backup, should_create_daily_backup
 from src.styles import theme
@@ -51,7 +51,6 @@ class Sidebar(QWidget):
         self.nav_list.addItem(QListWidgetItem("🔧  Parts"))
         self.nav_list.addItem(QListWidgetItem("⚠️  Defects"))
         self.nav_list.addItem(QListWidgetItem("🧾  Receipts"))
-        self.nav_list.addItem(QListWidgetItem("📊  Dashboard"))
         self.nav_list.addItem(QListWidgetItem("⚙️  Settings"))
         self.nav_list.setCurrentRow(0)
         self.nav_list.currentRowChanged.connect(self.on_page_changed)
@@ -84,7 +83,6 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(PartsPage())
         self.pages.addWidget(DefectsPage())
         self.pages.addWidget(ReceiptsPage())
-        self.pages.addWidget(DashboardPage())
         self.pages.addWidget(SettingsPage())
         
         # Create sidebar

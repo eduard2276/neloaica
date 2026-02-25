@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Tuple, List
 
 from src.database.connection import DatabaseConnection
+from src.paths import get_app_dir
 
 
-# Backup directory
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-BACKUPS_DIR = PROJECT_ROOT / "backups"
+# Backups live next to the exe/project
+BACKUPS_DIR = get_app_dir() / "backups"
 
 # Maximum number of backups to keep
 MAX_BACKUPS = 7
