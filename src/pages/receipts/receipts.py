@@ -1,221 +1,383 @@
-"""Receipts page."""
+"""Receipts page - Table list of receipts with create/edit/delete via browser-like tabs."""
 
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QLabel,
-    QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
     QPushButton,
+    QTabWidget,
     QMessageBox,
-    QGroupBox,
+    QLineEdit,
+    QDialog,
+    QFormLayout,
 )
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import Qt
 
-from .receipt_info import ReceiptInfoWidget
-from .estimates_section import EstimatesSectionWidget
-from .defects_section import DefectsSectionWidget
-from .parts_section import PartsSectionWidget
-from .labor_section import LaborSectionWidget
-from .billable_parts_section import BillablePartsSectionWidget
-from src.services import generate_receipt_excel, template_exists, create_backup
-from src.database.models.cars import update_car_kilometers
+from src.database.models.receipts import get_all_receipts, delete_receipt
+from src.widgets import NoScrollComboBox
 from src.styles import theme
-from src.utils import show_warning, show_info, show_critical
+
+from .receipt_form import ReceiptFormPage
 
 
 class ReceiptsPage(QWidget):
-    """Receipts page content."""
-    
+    """Receipts page with a pinned list tab and dynamic form tabs."""
+
     def __init__(self):
         super().__init__()
-        self.receipt_data = {}  # Store complete receipt form data
+        self.all_receipts = []
+        self.active_status_filter = "All"
+        self._open_receipt_tabs = {}
+        self._next_new_counter = 0
         self.setup_ui()
-    
+        self.load_data()
+
     def setup_ui(self):
-        """Setup the receipts UI."""
-        # Main layout for the page
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-        
-        # Create scroll area
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll_area.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background-color: transparent;
-            }
-        """)
-        
-        # Create content widget for scroll area
-        content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setSpacing(20)
-        content_layout.setContentsMargins(20, 20, 20, 20)
-        
-        # Header
+        """Setup the receipts page with a QTabWidget."""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setStyleSheet(theme.tab_widget())
+        self.tab_widget.setTabsClosable(True)
+        self.tab_widget.tabCloseRequested.connect(self._on_tab_close_requested)
+
+        # --- Tab 0: Receipts list (pinned, not closable) ---
+        self.list_page = QWidget()
+        self._setup_list_page()
+        self.tab_widget.addTab(self.list_page, "📋 Receipts List")
+
+        # Hide the close button on the pinned list tab
+        self.tab_widget.tabBar().setTabButton(0, self.tab_widget.tabBar().ButtonPosition.RightSide, None)
+
+        layout.addWidget(self.tab_widget)
+
+    def _setup_list_page(self):
+        """Build the receipt list (table) page."""
+        layout = QVBoxLayout(self.list_page)
+        layout.setSpacing(20)
+
+        header_layout = QHBoxLayout()
         title = QLabel("🧾 Receipts")
-        title.setStyleSheet("font-size: 28px; font-weight: bold; color: #2c3e50;")
-        content_layout.addWidget(title)
-        
-        # Receipt information section (customer and car data)
-        self.receipt_info_widget = ReceiptInfoWidget()
-        self.receipt_info_widget.data_changed.connect(self.on_receipt_info_changed)
-        content_layout.addWidget(self.receipt_info_widget)
+        title.setStyleSheet(theme.page_title())
+        header_layout.addWidget(title)
+        layout.addLayout(header_layout)
 
-        # Estimates section
-        self.estimates_widget = EstimatesSectionWidget("Estimates")
-        self.estimates_widget.estimates_changed.connect(self.on_estimates_changed)
-        content_layout.addWidget(self.estimates_widget)
-        self.on_estimates_changed(
-            self.estimates_widget.get_estimate_cost(),
-            self.estimates_widget.get_estimated_final_date(),
+        toolbar_layout = QHBoxLayout()
+
+        search_label = QLabel("🔍")
+        search_label.setStyleSheet("font-size: 18px;")
+        toolbar_layout.addWidget(search_label)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search receipts by client name...")
+        self.search_input.setStyleSheet(theme.search_input())
+        self.search_input.textChanged.connect(self.filter_receipts)
+        toolbar_layout.addWidget(self.search_input)
+
+        toolbar_layout.addSpacing(20)
+
+        add_btn = QPushButton("➕ New Receipt")
+        add_btn.setStyleSheet(theme.button("success"))
+        add_btn.clicked.connect(self.create_new_receipt)
+        toolbar_layout.addWidget(add_btn)
+
+        self.filter_btn = QPushButton("🔽 Filters")
+        self.filter_btn.setStyleSheet(theme.button("gray"))
+        self.filter_btn.clicked.connect(self.open_filter_dialog)
+        toolbar_layout.addWidget(self.filter_btn)
+
+        layout.addLayout(toolbar_layout)
+
+        self.filter_indicator = QLabel()
+        self.filter_indicator.setStyleSheet(
+            "color: #e67e22; font-weight: bold; font-size: 13px; padding: 2px 0;"
         )
-        
-        # Defects section
-        self.defects_widget = DefectsSectionWidget("Defects by the Client")
-        self.defects_widget.defects_changed.connect(self.on_defects_changed)
-        content_layout.addWidget(self.defects_widget)
-        
-        # Discovered Defects section
-        self.discovered_defects_widget = DefectsSectionWidget("Discovered Defects")
-        self.discovered_defects_widget.defects_changed.connect(self.on_discovered_defects_changed)
-        content_layout.addWidget(self.discovered_defects_widget)
-        
-        # Parts section
-        self.parts_widget = PartsSectionWidget("Parts received from client")
-        self.parts_widget.parts_changed.connect(self.on_parts_changed)
-        content_layout.addWidget(self.parts_widget)
-        
-        # Labor section
-        self.labor_widget = LaborSectionWidget("Labor Services")
-        self.labor_widget.labor_changed.connect(self.on_labor_changed)
-        content_layout.addWidget(self.labor_widget)
-        
-        # Billable parts section (parts used with units and pricing)
-        self.billable_parts_widget = BillablePartsSectionWidget("Parts Used")
-        self.billable_parts_widget.parts_changed.connect(self.on_billable_parts_changed)
-        content_layout.addWidget(self.billable_parts_widget)
-        
-        # Grand Total section (Labor + Parts)
-        grand_total_group = QGroupBox("Grand Total")
-        grand_total_group.setStyleSheet(theme.groupbox() + theme.form_label())
-        grand_total_layout = QHBoxLayout()
-        grand_total_layout.setSpacing(10)
-        
-        grand_total_label = QLabel("Total (Labor + Parts):")
-        grand_total_label.setStyleSheet(theme.form_label())
-        grand_total_layout.addWidget(grand_total_label)
-        
-        self.grand_total_value = QLabel("0.00 Lei")
-        self.grand_total_value.setStyleSheet(theme.form_label())
-        grand_total_layout.addWidget(self.grand_total_value)
-        
-        grand_total_layout.addStretch()
-        grand_total_group.setLayout(grand_total_layout)
-        content_layout.addWidget(grand_total_group)
-        
-        # Buttons section
-        button_layout = QHBoxLayout()
-        button_layout.setContentsMargins(0, 20, 0, 0)
-        button_layout.addStretch()
-        
-        self.reset_button = QPushButton("🔄 New Receipt")
-        self.reset_button.setStyleSheet(theme.button("primary"))
-        self.reset_button.setMinimumHeight(50)
-        self.reset_button.setMinimumWidth(200)
-        self.reset_button.clicked.connect(self.on_reset_clicked)
-        button_layout.addWidget(self.reset_button)
-        
-        self.generate_button = QPushButton("📄 Generate Receipt")
-        self.generate_button.setStyleSheet(theme.button("success"))
-        self.generate_button.setMinimumHeight(50)
-        self.generate_button.setMinimumWidth(200)
-        self.generate_button.clicked.connect(self.on_generate_clicked)
-        button_layout.addWidget(self.generate_button)
-        
-        button_layout.addStretch()
-        content_layout.addLayout(button_layout)
-        
-        content_layout.addStretch()
-        
-        # Set content widget to scroll area
-        scroll_area.setWidget(content_widget)
-        
-        # Add scroll area to main layout
-        main_layout.addWidget(scroll_area)
-    
+        self.filter_indicator.setVisible(False)
+        layout.addWidget(self.filter_indicator)
+
+        self.receipts_table = QTableWidget()
+        self.receipts_table.setStyleSheet(theme.table())
+        self.receipts_table.setAlternatingRowColors(True)
+        self.receipts_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.receipts_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.receipts_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.receipts_table.verticalHeader().setVisible(False)
+        self.receipts_table.verticalHeader().setDefaultSectionSize(50)
+        self.receipts_table.setColumnCount(7)
+        self.receipts_table.setHorizontalHeaderLabels([
+            "ID", "Client", "Car", "Date", "Grand Total", "Status", "Actions",
+        ])
+        self.receipts_table.doubleClicked.connect(self._on_table_double_click)
+
+        layout.addWidget(self.receipts_table)
+
     def showEvent(self, event):
-        """Called when the page is shown. Reload data to reflect any changes."""
+        """Reload data when the page becomes visible."""
         super().showEvent(event)
-        self._reload_all_data(restore_state=True)
+        if self.tab_widget.currentIndex() == 0:
+            self.load_data()
 
-    def _reload_all_data(self, restore_state=True):
-        """Reload all section data from the database."""
-        self.receipt_info_widget.load_data(restore_state=restore_state)
-        self.defects_widget.load_data(restore_state=restore_state)
-        self.discovered_defects_widget.load_data(restore_state=restore_state)
-        self.parts_widget.load_data(restore_state=restore_state)
-        self.labor_widget.load_data(restore_state=restore_state)
-        self.billable_parts_widget.load_data(restore_state=restore_state)
-    
-    def on_receipt_info_changed(self, data: dict):
-        """Handle receipt information data change."""
-        # Update receipt_data with receipt info
-        self.receipt_data.update(data)
-        self.update_receipt_data()
-    
-    def on_defects_changed(self, defect_ids: list):
-        """Handle defects list change."""
-        # Update receipt_data with defects
-        self.receipt_data['defects'] = defect_ids
-        self.update_receipt_data()
+    # ==================== Data / Filtering ====================
 
-    def on_estimates_changed(self, estimate_cost: float, estimated_final_date: str):
-        """Handle estimates section data change."""
-        self.receipt_data['estimate_cost'] = estimate_cost
-        self.receipt_data['estimated_final_date'] = estimated_final_date
-        self.update_receipt_data()
-    
-    def on_discovered_defects_changed(self, defect_ids: list):
-        """Handle discovered defects list change."""
-        # Update receipt_data with discovered defects
-        self.receipt_data['discovered_defects'] = defect_ids
-        self.update_receipt_data()
-    
-    def on_parts_changed(self, part_ids: list):
-        """Handle parts list change."""
-        # Update receipt_data with parts
-        self.receipt_data['parts'] = part_ids
-        self.update_receipt_data()
-    
-    def on_labor_changed(self, labor_ids: list, total_cost: float):
-        """Handle labor list change."""
-        # Update receipt_data with labor IDs and total cost
-        self.receipt_data['labor'] = labor_ids
-        self.receipt_data['total_labor_cost'] = total_cost
-        self.update_receipt_data()
-        self.update_grand_total()
-    
-    def on_billable_parts_changed(self, parts_list: list, total_cost: float):
-        """Handle billable parts list change."""
-        # Update receipt_data with billable parts (with units and pricing)
-        self.receipt_data['billable_parts'] = parts_list
-        self.receipt_data['total_parts_cost'] = total_cost
-        self.update_receipt_data()
-        self.update_grand_total()
-    
-    def update_grand_total(self):
-        """Update the grand total label (Labor + Parts)."""
-        labor_cost = self.receipt_data.get('total_labor_cost', 0.0)
-        parts_cost = self.receipt_data.get('total_parts_cost', 0.0)
-        grand_total = labor_cost + parts_cost
-        self.grand_total_value.setText(f"{self.format_price(grand_total)} Lei")
-    
-    def format_price(self, value) -> str:
+    def load_data(self):
+        """Load receipts from the database."""
+        self.all_receipts = get_all_receipts()
+        self.apply_filters()
+
+    def apply_filters(self):
+        """Apply both search text and status filters."""
+        search_text = self.search_input.text().lower().strip()
+        filtered = self.all_receipts
+
+        if self.active_status_filter != "All":
+            filtered = [
+                r for r in filtered
+                if r.get('status', 'Ongoing') == self.active_status_filter
+            ]
+
+        if search_text:
+            filtered = [
+                r for r in filtered
+                if search_text in r.get('client_name', '').lower()
+                or search_text in r.get('car_model', '').lower()
+            ]
+
+        self.display_receipts(filtered)
+
+    def filter_receipts(self, _search_text: str):
+        """Called when the search input changes."""
+        self.apply_filters()
+
+    def open_filter_dialog(self):
+        """Open the filter popup dialog."""
+        dialog = FilterDialog(self, self.active_status_filter)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.active_status_filter = dialog.get_selected_status()
+            self._update_filter_indicator()
+            self.apply_filters()
+
+    def _update_filter_indicator(self):
+        """Show or hide the active filter indicator below the toolbar."""
+        if self.active_status_filter == "All":
+            self.filter_indicator.setVisible(False)
+            self.filter_btn.setStyleSheet(theme.button("gray"))
+        else:
+            self.filter_indicator.setText(f"Filtering by status: {self.active_status_filter}")
+            self.filter_indicator.setVisible(True)
+            self.filter_btn.setStyleSheet(theme.button("primary"))
+
+    def display_receipts(self, receipts: list):
+        """Display receipts in the table."""
+        self.receipts_table.setRowCount(len(receipts))
+
+        for row, receipt in enumerate(receipts):
+            receipt_id = receipt["id"]
+
+            id_item = QTableWidgetItem(str(receipt_id))
+            id_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            id_item.setData(Qt.ItemDataRole.UserRole, receipt_id)
+            self.receipts_table.setItem(row, 0, id_item)
+
+            self.receipts_table.setItem(row, 1, QTableWidgetItem(receipt.get("client_name", "")))
+            self.receipts_table.setItem(row, 2, QTableWidgetItem(receipt.get("car_model", "")))
+            self.receipts_table.setItem(row, 3, QTableWidgetItem(receipt.get("date", "")))
+
+            grand_total = receipt.get("grand_total", 0.0)
+            total_item = QTableWidgetItem(f"{self._format_price(grand_total)} Lei")
+            total_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.receipts_table.setItem(row, 4, total_item)
+
+            status = receipt.get("status", "Ongoing")
+            color = "#27ae60" if status == "Done" else "#e67e22"
+            status_label = QLabel(status)
+            status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            status_label.setStyleSheet(
+                f"color: {color}; font-weight: bold; font-size: 14px;"
+                " background-color: transparent;"
+            )
+            self.receipts_table.setCellWidget(row, 5, status_label)
+
+            actions_widget = QWidget()
+            actions_widget.setStyleSheet("background-color: transparent;")
+            actions_layout = QHBoxLayout(actions_widget)
+            actions_layout.setContentsMargins(5, 0, 2, 0)
+            actions_layout.setSpacing(5)
+
+            edit_btn = QPushButton("✏️")
+            edit_btn.setStyleSheet(theme.button_icon("edit"))
+            edit_btn.setToolTip("Edit receipt")
+            edit_btn.clicked.connect(
+                lambda checked, rid=receipt_id: self.edit_receipt(rid)
+            )
+            actions_layout.addWidget(edit_btn)
+
+            delete_btn = QPushButton("🗑️")
+            delete_btn.setStyleSheet(theme.button_icon("delete"))
+            delete_btn.setToolTip("Delete receipt")
+            delete_btn.clicked.connect(
+                lambda checked, rid=receipt_id: self.delete_receipt_by_id(rid)
+            )
+            actions_layout.addWidget(delete_btn)
+
+            self.receipts_table.setCellWidget(row, 6, actions_widget)
+
+        header = self.receipts_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)
+        self.receipts_table.setColumnWidth(6, 100)
+
+    # ==================== Tab Management ====================
+
+    def _make_tab_key(self, receipt_id=None):
+        """Create a unique key for tracking open tabs."""
+        if receipt_id is not None:
+            return f"edit:{receipt_id}"
+        self._next_new_counter += 1
+        return f"new:{self._next_new_counter}"
+
+    def _open_form_tab(self, receipt_id=None):
+        """Open a new form tab or switch to an existing one for the given receipt_id."""
+        if receipt_id is not None:
+            existing_key = f"edit:{receipt_id}"
+            if existing_key in self._open_receipt_tabs:
+                tab_index = self.tab_widget.indexOf(self._open_receipt_tabs[existing_key])
+                if tab_index != -1:
+                    self.tab_widget.setCurrentIndex(tab_index)
+                    return
+                del self._open_receipt_tabs[existing_key]
+
+        form = ReceiptFormPage()
+        key = self._make_tab_key(receipt_id)
+        self._open_receipt_tabs[key] = form
+
+        form.receipt_saved.connect(self.load_data)
+        form.close_requested.connect(lambda f=form: self._close_form_tab(f))
+        form.tab_title_changed.connect(lambda title, f=form: self._update_tab_title(f, title))
+
+        if receipt_id is not None:
+            receipt = next((r for r in self.all_receipts if r["id"] == receipt_id), None)
+            client_name = receipt.get("client_name", "") if receipt else ""
+            tab_title = f"Receipt #{receipt_id}"
+            if client_name:
+                tab_title += f" - {client_name}"
+            form.load_for_edit(receipt_id)
+        else:
+            tab_title = "New Receipt"
+            form.load_for_new()
+
+        tab_index = self.tab_widget.addTab(form, tab_title)
+        self.tab_widget.setCurrentIndex(tab_index)
+
+    def _update_tab_title(self, form_widget, title: str):
+        """Update the tab text for a given form widget."""
+        tab_index = self.tab_widget.indexOf(form_widget)
+        if tab_index != -1:
+            self.tab_widget.setTabText(tab_index, title)
+
+    def _close_form_tab(self, form_widget):
+        """Close the tab containing the given form widget."""
+        tab_index = self.tab_widget.indexOf(form_widget)
+        if tab_index != -1:
+            self._on_tab_close_requested(tab_index)
+
+    def _on_tab_close_requested(self, index: int):
+        """Handle a tab close request. Prevent closing the pinned list tab."""
+        if index == 0:
+            return
+
+        widget = self.tab_widget.widget(index)
+
+        if isinstance(widget, ReceiptFormPage) and widget.has_unsaved_changes:
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Unsaved Changes")
+            msg_box.setText(
+                "This receipt has unsaved changes.\n"
+                "Are you sure you want to close it?"
+            )
+            msg_box.setIcon(QMessageBox.Icon.Warning)
+            msg_box.setStandardButtons(
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            msg_box.setDefaultButton(QMessageBox.StandardButton.No)
+            msg_box.setStyleSheet(theme.message_box_confirm())
+            if msg_box.exec() != QMessageBox.StandardButton.Yes:
+                return
+
+        keys_to_remove = [k for k, v in self._open_receipt_tabs.items() if v is widget]
+        for k in keys_to_remove:
+            del self._open_receipt_tabs[k]
+
+        self.tab_widget.removeTab(index)
+        widget.deleteLater()
+
+        if self.tab_widget.count() == 1:
+            self.tab_widget.setCurrentIndex(0)
+            self.load_data()
+
+    # ==================== Actions ====================
+
+    def create_new_receipt(self):
+        """Open a new form tab for creating a receipt."""
+        self._open_form_tab()
+
+    def edit_receipt(self, receipt_id: int):
+        """Open or switch to the form tab for editing an existing receipt."""
+        self._open_form_tab(receipt_id)
+
+    def _on_table_double_click(self):
+        """Handle double-click on a table row."""
+        selected = self.receipts_table.selectionModel().selectedRows()
+        if not selected:
+            return
+        row = selected[0].row()
+        receipt_id = self.receipts_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        self.edit_receipt(receipt_id)
+
+    def delete_receipt_by_id(self, receipt_id: int):
+        """Delete a receipt after confirmation."""
+        receipt = next((r for r in self.all_receipts if r["id"] == receipt_id), None)
+        if not receipt:
+            return
+
+        client_name = receipt.get("client_name", "Unknown")
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Confirm Delete")
+        msg_box.setText(
+            f"Are you sure you want to delete receipt #{receipt_id} "
+            f"for {client_name}?"
+        )
+        msg_box.setIcon(QMessageBox.Icon.Question)
+        msg_box.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        msg_box.setDefaultButton(QMessageBox.StandardButton.No)
+        msg_box.setStyleSheet(theme.message_box_confirm())
+
+        if msg_box.exec() == QMessageBox.StandardButton.Yes:
+            existing_key = f"edit:{receipt_id}"
+            if existing_key in self._open_receipt_tabs:
+                tab_index = self.tab_widget.indexOf(self._open_receipt_tabs[existing_key])
+                if tab_index != -1:
+                    self._on_tab_close_requested(tab_index)
+
+            delete_receipt(receipt_id)
+            self.load_data()
+
+    # ==================== Utilities ====================
+
+    @staticmethod
+    def _format_price(value) -> str:
         """Format a number with thousand separators."""
         try:
             num = float(value)
@@ -230,75 +392,58 @@ class ReceiptsPage(QWidget):
                 formatted = ' ' + formatted
             formatted = d + formatted
         return f"{formatted}.{decimal_part}"
-    
-    def update_receipt_data(self):
-        """Update and log the complete receipt data object."""
-    
-    def on_reset_clicked(self):
-        """Reset the entire receipt form to a blank state."""
-        self.receipt_data = {}
 
-        # Re-fetch all data from database and reset selections
-        self._reload_all_data(restore_state=False)
 
-        # Reset estimates section
-        self.estimates_widget.estimate_cost_input.clear()
-        self.estimates_widget._selected_date = QDate.currentDate()
-        self.estimates_widget.date_display.setText(
-            self.estimates_widget._selected_date.toString("dd.MM.yyyy")
-        )
-        self.estimates_widget.emit_estimates_changed()
+class FilterDialog(QDialog):
+    """Popup dialog for receipt filters."""
 
-        # Reset grand total
-        self.grand_total_value.setText("0.00 Lei")
+    STATUS_OPTIONS = ["All", "Ongoing", "Done"]
 
-        show_info(self, "Reset", "All fields have been cleared.")
+    def __init__(self, parent=None, current_status: str = "All"):
+        super().__init__(parent)
+        self.setWindowTitle("Filter Receipts")
+        self.setMinimumWidth(350)
+        self.setStyleSheet(theme.dialog() + theme.line_edit_dialog())
+        self._build_ui(current_status)
 
-    def on_generate_clicked(self):
-        """Handle generate button click - export receipt to Excel."""
-        try:
-            self._do_generate()
-        except Exception as e:
-            import traceback
-            show_critical(self, "Error", f"Failed to generate receipt:\n{traceback.format_exc()}")
+    def _build_ui(self, current_status: str):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
 
-    def _do_generate(self):
-        """Internal receipt generation logic."""
-        if not template_exists():
-            show_warning(
-                self,
-                "Template Not Found",
-                "The Excel template was not found.\n\n"
-                "Please reinstall the application or contact support."
-            )
-            return
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
 
-        if not self.receipt_data.get('client_id'):
-            show_warning(
-                self,
-                "Missing Information",
-                "Please select a client before generating the receipt."
-            )
-            return
+        self.status_combo = NoScrollComboBox()
+        self.status_combo.setStyleSheet(theme.combobox())
+        for option in self.STATUS_OPTIONS:
+            self.status_combo.addItem(option)
+        idx = self.STATUS_OPTIONS.index(current_status) if current_status in self.STATUS_OPTIONS else 0
+        self.status_combo.setCurrentIndex(idx)
+        form_layout.addRow("Status:", self.status_combo)
 
-        create_backup("pre-receipt")
+        layout.addLayout(form_layout)
 
-        car_id = self.receipt_data.get('car_id')
-        kilometers = self.receipt_data.get('kilometers', '')
-        if car_id and kilometers:
-            try:
-                update_car_kilometers(car_id, int(kilometers))
-            except ValueError:
-                pass
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
 
-        output_path, warnings = generate_receipt_excel(self.receipt_data)
+        clear_btn = QPushButton("Clear Filters")
+        clear_btn.setStyleSheet(theme.button("cancel"))
+        clear_btn.clicked.connect(self._clear_filters)
+        btn_layout.addWidget(clear_btn)
 
-        message = f"Receipt has been generated successfully!\n\nFile saved to:\n{output_path}"
-        if warnings:
-            message += "\n\n" + "\n".join(warnings)
+        apply_btn = QPushButton("Apply")
+        apply_btn.setStyleSheet(theme.button("primary"))
+        apply_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(apply_btn)
 
-        show_info(self, "Receipt Generated", message)
+        layout.addLayout(btn_layout)
 
-        import os
-        os.startfile(output_path)
+    def _clear_filters(self):
+        """Reset all filters to defaults and accept."""
+        self.status_combo.setCurrentIndex(0)
+        self.accept()
 
+    def get_selected_status(self) -> str:
+        """Return the currently selected status option."""
+        return self.status_combo.currentText()

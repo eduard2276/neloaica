@@ -142,8 +142,8 @@ class LaborSectionWidget(QWidget):
         
         # Selected labor list
         self.labor_list = QListWidget()
+        self.labor_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.labor_list.setStyleSheet(theme.list_widget())
-        self.labor_list.setMinimumHeight(150)
         self.update_list_style()
         labor_layout.addWidget(self.labor_list)
         
@@ -313,11 +313,25 @@ class LaborSectionWidget(QWidget):
         self.emit_labor_changed()
     
     def update_list_style(self):
-        """Update list widget background based on item count."""
+        """Update list widget background and height based on item count."""
         if len(self.selected_labor) > 0:
             self.labor_list.setStyleSheet(theme.list_widget_with_items())
         else:
             self.labor_list.setStyleSheet(theme.list_widget())
+        self._resize_list()
+
+    def _resize_list(self):
+        """Resize list widget height to fit all items without scrollbar."""
+        count = self.labor_list.count()
+        if count == 0:
+            self.labor_list.setFixedHeight(0)
+            return
+        total = sum(
+            self.labor_list.sizeHintForRow(i) for i in range(count)
+        )
+        margins = self.labor_list.contentsMargins()
+        total += margins.top() + margins.bottom() + 4
+        self.labor_list.setFixedHeight(total)
     
     def add_new_labor_to_database(self):
         """Open dialog to add new labor to the database."""
@@ -387,6 +401,28 @@ class LaborSectionWidget(QWidget):
         """Get list of selected labor IDs."""
         return self.selected_labor.copy()
     
+    def set_data(self, labor_ids: list, total_cost: float = 0.0):
+        """Populate with existing labor IDs and total cost."""
+        self.load_data(restore_state=False)
+        for labor_id in labor_ids:
+            labor = next((l for l in self.all_labor if l["id"] == labor_id), None)
+            if labor:
+                self.add_labor(labor_id, labor["service_name"])
+        if total_cost > 0:
+            self.total_cost_input.setText(self._format_cost(total_cost))
+
+    def _format_cost(self, value: float) -> str:
+        """Format a cost value with thousand separators."""
+        int_part = int(value)
+        dec_part = f"{value:.2f}".split('.')[1]
+        formatted = ''
+        int_str = str(int_part)
+        for i, d in enumerate(reversed(int_str)):
+            if i > 0 and i % 3 == 0:
+                formatted = ' ' + formatted
+            formatted = d + formatted
+        return f"{formatted}.{dec_part}"
+
     def get_total_labor_cost(self) -> float:
         """Get the total labor cost from the input field."""
         text = self.total_cost_input.text().replace(' ', '').strip()

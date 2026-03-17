@@ -179,7 +179,6 @@ class ThemeManager:
                 border: 2px solid {self._colors['border']};
                 border-radius: 6px;
                 padding: 5px;
-                min-height: 150px;
             }}
             QListWidget::item {{
                 padding: 5px;
@@ -198,7 +197,6 @@ class ThemeManager:
                 border: 2px solid #bdc3c7;
                 border-radius: 6px;
                 padding: 0px;
-                min-height: 150px;
             }}
             QListWidget::item {{
                 padding: 0px;
@@ -209,6 +207,50 @@ class ThemeManager:
             }}
         """
     
+    def tab_widget(self) -> str:
+        """Style for QTabWidget (browser-like tabs)."""
+        return f"""
+            QTabWidget::pane {{
+                border: none;
+                background-color: transparent;
+            }}
+            QTabBar {{
+                background-color: {self._colors['bg_secondary']};
+            }}
+            QTabBar::tab {{
+                background-color: {self._colors['bg_secondary']};
+                color: {self._colors['text_secondary']};
+                border: 1px solid {self._colors['border']};
+                border-bottom: none;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                padding: 8px 18px;
+                margin-right: 2px;
+                font-size: 13px;
+                min-width: 120px;
+                max-width: 250px;
+            }}
+            QTabBar::tab:selected {{
+                background-color: {self._colors['bg_primary']};
+                color: {self._colors['text_primary']};
+                font-weight: bold;
+                border-bottom: 2px solid {self._colors['primary']};
+            }}
+            QTabBar::tab:hover:!selected {{
+                background-color: {self._colors['bg_tertiary']};
+                color: {self._colors['text_primary']};
+            }}
+            QTabBar::close-button {{
+                subcontrol-position: right;
+                padding: 4px;
+                margin: 2px;
+                border-radius: 3px;
+            }}
+            QTabBar::close-button:hover {{
+                background-color: {self._colors['danger']};
+            }}
+        """
+
     def table(self) -> str:
         """Style for table widgets."""
         return f"""

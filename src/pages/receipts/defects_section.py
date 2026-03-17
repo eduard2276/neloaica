@@ -146,9 +146,9 @@ class DefectsSectionWidget(QWidget):
         
         # Defects list
         self.defects_list = QListWidget()
+        self.defects_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.defects_list.setStyleSheet(theme.list_widget())
-        self.defects_list.setMinimumHeight(150)
-        self.update_list_style()  # Set initial style
+        self.update_list_style()
         
         defects_layout.addWidget(self.defects_list)
         
@@ -294,12 +294,40 @@ class DefectsSectionWidget(QWidget):
                 show_critical(self, "Error", f"Failed to add defect: {str(e)}")
     
     def update_list_style(self):
-        """Update list widget background based on item count."""
+        """Update list widget background and height based on item count."""
         if len(self.selected_defects) > 0:
             self.defects_list.setStyleSheet(theme.list_widget_with_items())
         else:
             self.defects_list.setStyleSheet(theme.list_widget())
+        self._resize_list()
+
+    def _resize_list(self):
+        """Resize list widget height to fit all items without scrollbar."""
+        count = self.defects_list.count()
+        if count == 0:
+            self.defects_list.setFixedHeight(0)
+            return
+        total = sum(
+            self.defects_list.sizeHintForRow(i) for i in range(count)
+        )
+        margins = self.defects_list.contentsMargins()
+        total += margins.top() + margins.bottom() + 4
+        self.defects_list.setFixedHeight(total)
     
+    def set_data(self, defect_ids: list):
+        """Populate with existing defect IDs."""
+        self.load_data(restore_state=False)
+        for defect_id in defect_ids:
+            defect = next((d for d in self.all_defects if d['id'] == defect_id), None)
+            if defect:
+                self.defect_combo.blockSignals(True)
+                for i in range(self.defect_combo.count()):
+                    if self.defect_combo.itemData(i) == defect_id:
+                        self.defect_combo.setCurrentIndex(i)
+                        break
+                self.defect_combo.blockSignals(False)
+                self.add_defect()
+
     def get_selected_defects(self) -> list:
         """Get list of selected defect IDs."""
         return self.selected_defects.copy()

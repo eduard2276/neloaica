@@ -16,6 +16,7 @@ from PySide6.QtCore import Qt, Signal, QDate
 from src.database.models import (
     get_all_clients,
     get_all_cars,
+    get_all_employees,
 )
 from src.widgets import NoScrollComboBox
 from src.styles import theme
@@ -31,9 +32,11 @@ class ReceiptInfoWidget(QWidget):
         super().__init__()
         self.all_clients = []
         self.all_cars = []
+        self.all_employees = []
         self.saved_client_id = None
         self.saved_car_id = None
         self.saved_kilometers = ""
+        self.saved_executant_id = None
         self.setup_ui()
         self.load_data()
     
@@ -115,7 +118,14 @@ class ReceiptInfoWidget(QWidget):
         form_layout.addRow("Plate Number:", self.plate_input)
         form_layout.addRow("VIN:", self.vin_input)
         form_layout.addRow("Model:", self.model_input)
+        # Executant dropdown
+        self.executant_combo = NoScrollComboBox()
+        self.executant_combo.setPlaceholderText("Select an executant")
+        self.executant_combo.currentIndexChanged.connect(self.on_executant_changed)
+        self.executant_combo.setStyleSheet(theme.combobox())
+
         form_layout.addRow("Kilometers:", self.km_input)
+        form_layout.addRow("Executant:", self.executant_combo)
         form_layout.addRow("Date:", self.date_display)
         
         form_group.setLayout(form_layout)
@@ -128,9 +138,24 @@ class ReceiptInfoWidget(QWidget):
         
         self.all_clients = get_all_clients()
         self.all_cars = get_all_cars()
+        self.all_employees = get_all_employees()
         
         # Sort clients alphabetically by first name, then last name
         self.all_clients.sort(key=lambda c: (c['first_name'].lower(), c['last_name'].lower()))
+        
+        # Populate executant dropdown
+        self.executant_combo.blockSignals(True)
+        self.executant_combo.clear()
+        self.executant_combo.addItem("Select an executant", None)
+        for emp in self.all_employees:
+            display_text = f"{emp['first_name']} {emp['last_name']}"
+            self.executant_combo.addItem(display_text, emp['id'])
+        if restore_state and self.saved_executant_id is not None:
+            for i in range(self.executant_combo.count()):
+                if self.executant_combo.itemData(i) == self.saved_executant_id:
+                    self.executant_combo.setCurrentIndex(i)
+                    break
+        self.executant_combo.blockSignals(False)
         
         self.client_combo.blockSignals(True)
         
@@ -159,6 +184,7 @@ class ReceiptInfoWidget(QWidget):
         self.saved_client_id = self.client_combo.currentData()
         self.saved_car_id = self.car_combo.currentData()
         self.saved_kilometers = self.km_input.text()
+        self.saved_executant_id = self.executant_combo.currentData()
     
     def restore_form_state(self):
         """Restore previously saved form state."""
@@ -235,6 +261,10 @@ class ReceiptInfoWidget(QWidget):
         
         self.emit_data_changed()
     
+    def on_executant_changed(self, index):
+        """Handle executant selection change."""
+        self.emit_data_changed()
+
     def on_km_text_changed(self, text):
         """Handle kilometers input change with formatting."""
         if self._km_updating:
@@ -424,6 +454,13 @@ class ReceiptInfoWidget(QWidget):
                 client_name = f"{client['first_name']} {client['last_name']}"
                 client_address = client.get('address', '')
         
+        executant_name = ""
+        executant_id = self.executant_combo.currentData()
+        if executant_id is not None:
+            emp = next((e for e in self.all_employees if e['id'] == executant_id), None)
+            if emp:
+                executant_name = f"{emp['first_name']} {emp['last_name']}"
+
         return {
             'client_id': client_id,
             'client_name': client_name,
@@ -433,9 +470,47 @@ class ReceiptInfoWidget(QWidget):
             'vin': self.vin_input.text(),
             'model': self.model_input.text(),
             'kilometers': self.parse_kilometers(self.km_input.text()),
+            'executant_name': executant_name,
             'date': self._selected_date.toString("dd.MM.yyyy"),
         }
     
+    def set_data(self, data: dict):
+        """Populate the form with existing receipt data."""
+        self.load_data(restore_state=False)
+
+        client_id = data.get('client_id')
+        if client_id is not None:
+            for i in range(self.client_combo.count()):
+                if self.client_combo.itemData(i) == client_id:
+                    self.client_combo.setCurrentIndex(i)
+                    break
+
+        car_id = data.get('car_id')
+        if car_id is not None:
+            for i in range(self.car_combo.count()):
+                if self.car_combo.itemData(i) == car_id:
+                    self.car_combo.setCurrentIndex(i)
+                    break
+
+        km = data.get('kilometers', '')
+        if km:
+            self.km_input.setText(self.format_kilometers(int(km)) if km.isdigit() else km)
+
+        executant_name = data.get('executant_name', '')
+        if executant_name:
+            for i in range(self.executant_combo.count()):
+                if self.executant_combo.itemText(i) == executant_name:
+                    self.executant_combo.setCurrentIndex(i)
+                    break
+
+        date_str = data.get('date', '')
+        if date_str:
+            from PySide6.QtCore import QDate
+            parsed = QDate.fromString(date_str, "dd.MM.yyyy")
+            if parsed.isValid():
+                self._selected_date = parsed
+                self.date_display.setText(date_str)
+
     def emit_data_changed(self):
         """Emit signal with current data."""
         self.data_changed.emit(self.get_data())
