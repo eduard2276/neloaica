@@ -143,6 +143,7 @@ class PartsSectionWidget(QWidget):
         
         # List of selected parts
         self.parts_list = QListWidget()
+        self.parts_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.parts_list.setStyleSheet(theme.list_widget())
         self.update_list_style()
         parts_layout.addWidget(self.parts_list)
@@ -275,11 +276,25 @@ class PartsSectionWidget(QWidget):
         self.parts_changed.emit(self.selected_parts.copy())
     
     def update_list_style(self):
-        """Update list widget background based on item count."""
+        """Update list widget background and height based on item count."""
         if len(self.selected_parts) > 0:
             self.parts_list.setStyleSheet(theme.list_widget_with_items())
         else:
             self.parts_list.setStyleSheet(theme.list_widget())
+        self._resize_list()
+
+    def _resize_list(self):
+        """Resize list widget height to fit all items without scrollbar."""
+        count = self.parts_list.count()
+        if count == 0:
+            self.parts_list.setFixedHeight(0)
+            return
+        total = sum(
+            self.parts_list.sizeHintForRow(i) for i in range(count)
+        )
+        margins = self.parts_list.contentsMargins()
+        total += margins.top() + margins.bottom() + 4
+        self.parts_list.setFixedHeight(total)
     
     def add_new_part_to_database(self):
         """Open dialog to add a new part to the database."""
@@ -298,6 +313,14 @@ class PartsSectionWidget(QWidget):
             except Exception as e:
                 show_critical(self, "Error", f"Failed to add part: {str(e)}")
     
+    def set_data(self, part_ids: list):
+        """Populate with existing part IDs."""
+        self.load_data(restore_state=False)
+        for part_id in part_ids:
+            part = next((p for p in self.all_parts if p['id'] == part_id), None)
+            if part:
+                self.add_part(part)
+
     def get_selected_parts(self) -> list:
         """Get the list of selected part IDs."""
         return self.selected_parts.copy()

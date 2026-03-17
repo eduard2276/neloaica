@@ -143,8 +143,8 @@ class BillablePartsSectionWidget(QWidget):
         
         # Selected parts list
         self.parts_list = QListWidget()
+        self.parts_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.parts_list.setStyleSheet(theme.list_widget())
-        self.parts_list.setMinimumHeight(150)
         self.update_list_style()
         parts_layout.addWidget(self.parts_list)
         
@@ -413,11 +413,25 @@ class BillablePartsSectionWidget(QWidget):
                 show_critical(self, "Error", f"Failed to add part: {str(e)}")
     
     def update_list_style(self):
-        """Update list widget background based on item count."""
+        """Update list widget background and height based on item count."""
         if len(self.selected_parts) > 0:
             self.parts_list.setStyleSheet(theme.list_widget_with_items())
         else:
             self.parts_list.setStyleSheet(theme.list_widget())
+        self._resize_list()
+
+    def _resize_list(self):
+        """Resize list widget height to fit all items without scrollbar."""
+        count = self.parts_list.count()
+        if count == 0:
+            self.parts_list.setFixedHeight(0)
+            return
+        total = sum(
+            self.parts_list.sizeHintForRow(i) for i in range(count)
+        )
+        margins = self.parts_list.contentsMargins()
+        total += margins.top() + margins.bottom() + 4
+        self.parts_list.setFixedHeight(total)
     
     def format_price(self, value) -> str:
         """Format a number with thousand separators."""
@@ -542,6 +556,20 @@ class BillablePartsSectionWidget(QWidget):
         """Calculate and return the total cost of all parts."""
         return sum(item["units"] * item["price_per_unit"] for item in self.selected_parts)
     
+    def set_data(self, parts_list: list):
+        """Populate with existing billable parts data."""
+        self.load_data(restore_state=False)
+        for item in parts_list:
+            part_id = item.get("part_id")
+            part = next((p for p in self.all_parts if p["id"] == part_id), None)
+            if part:
+                self.add_part(
+                    part_id,
+                    part["part_name"],
+                    item.get("units", 0),
+                    item.get("price_per_unit", 0.0),
+                )
+
     def update_total_cost_label(self):
         """Update the total cost label."""
         total = self.get_total_parts_cost()

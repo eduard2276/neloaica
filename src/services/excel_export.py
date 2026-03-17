@@ -255,6 +255,14 @@ def generate_receipt_excel(receipt_data: dict) -> str:
     grand_total_tva = (grand_total * tva_percentage) / (100 + tva_percentage)
     sheet[f'F{grand_total_row}'] = grand_total
     
+    # Executant name - base row 50, shifted by extra labor/parts rows
+    extra_labor_rows = max(0, len(labor_ids) - 1)
+    extra_parts_rows = max(0, len(billable_parts) - 1)
+    executant_row = 50 + extra_labor_rows + extra_parts_rows
+    executant_name = receipt_data.get('executant_name', '')
+    if executant_name:
+        sheet[f'B{executant_row}'] = executant_name
+    
     # Save the workbook
     workbook.save(output_path)
     workbook.close()

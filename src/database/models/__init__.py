@@ -67,6 +67,30 @@ from .settings import (
     get_all_settings,
 )
 
+# Import all employee functions
+from .employees import (
+    create_employees_table,
+    get_all_employees,
+    get_employee_by_id,
+    add_employee,
+    update_employee,
+    delete_employee,
+    get_employees_count,
+    get_employees_for_dropdown,
+)
+
+# Import all receipt functions
+from .receipts import (
+    create_receipts_table,
+    get_all_receipts,
+    get_receipt_by_id,
+    add_receipt,
+    update_receipt,
+    update_receipt_status,
+    delete_receipt,
+    get_receipts_count,
+)
+
 __all__ = [
     # Initialization
     "init_database",
@@ -113,6 +137,22 @@ __all__ = [
     "get_receipt_number",
     "update_receipt_number",
     "get_all_settings",
+    # Employee functions
+    "get_all_employees",
+    "get_employee_by_id",
+    "add_employee",
+    "update_employee",
+    "delete_employee",
+    "get_employees_count",
+    "get_employees_for_dropdown",
+    # Receipt functions
+    "get_all_receipts",
+    "get_receipt_by_id",
+    "add_receipt",
+    "update_receipt",
+    "update_receipt_status",
+    "delete_receipt",
+    "get_receipts_count",
 ]
 
 
@@ -124,5 +164,5 @@ def init_database():
     create_parts_table()
     create_defects_table()
     create_settings_table()
-
-
+    create_receipts_table()
+    create_employees_table()

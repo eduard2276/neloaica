@@ -145,6 +145,27 @@ class EstimatesSectionWidget(QWidget):
         """Emit estimates data."""
         self.estimates_changed.emit(self.get_estimate_cost(), self.get_estimated_final_date())
 
+    def set_data(self, estimate_cost: float, estimated_final_date: str):
+        """Populate with existing estimates data."""
+        if estimate_cost > 0:
+            int_part = int(estimate_cost)
+            dec_part = f"{estimate_cost:.2f}".split('.')[1]
+            formatted = ''
+            int_str = str(int_part)
+            for i, d in enumerate(reversed(int_str)):
+                if i > 0 and i % 3 == 0:
+                    formatted = ' ' + formatted
+                formatted = d + formatted
+            self.estimate_cost_input.setText(f"{formatted}.{dec_part}")
+
+        if estimated_final_date:
+            parsed = QDate.fromString(estimated_final_date, "dd.MM.yyyy")
+            if parsed.isValid():
+                self._selected_date = parsed
+                self.date_display.setText(estimated_final_date)
+
+        self.emit_estimates_changed()
+
     def show_calendar(self):
         """Show a calendar popup to pick estimated final date."""
         dialog = QDialog(self)
