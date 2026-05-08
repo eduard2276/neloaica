@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QSize
 
-from src.database.models.parts import get_all_parts, add_part as add_part_to_db
+from src.database.models.parts import get_all_parts, add_part as add_part_to_db, get_part_by_name
 from src.widgets import NoScrollComboBox
 from src.styles import theme
 from src.utils import show_warning, show_info, show_critical
@@ -301,6 +301,15 @@ class PartsSectionWidget(QWidget):
         dialog = AddPartDialog(self)
         if dialog.exec():
             part_name = dialog.get_part_name()
+
+            existing = get_part_by_name(part_name)
+            if existing:
+                show_warning(
+                    self, "Duplicate Entry",
+                    f"A part named '{existing['part_name']}' already exists."
+                )
+                return
+
             try:
                 # Add to database
                 part_id = add_part_to_db(part_name)

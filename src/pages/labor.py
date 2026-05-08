@@ -21,6 +21,7 @@ from src.database.models import (
     add_labor,
     update_labor,
     delete_labor,
+    get_labor_by_name,
 )
 from src.styles import theme
 from src.utils import show_warning
@@ -253,6 +254,13 @@ class LaborPage(QWidget):
         dialog = LaborDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
+            existing = get_labor_by_name(data["service_name"])
+            if existing:
+                show_warning(
+                    self, "Duplicate Entry",
+                    f"A service named '{existing['service_name']}' already exists."
+                )
+                return
             add_labor(data["service_name"])
             self.load_data()
 
@@ -311,6 +319,13 @@ class LaborPage(QWidget):
         dialog = LaborDialog(self, labor_data)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
+            existing = get_labor_by_name(data["service_name"])
+            if existing and existing["id"] != labor_id:
+                show_warning(
+                    self, "Duplicate Entry",
+                    f"A service named '{existing['service_name']}' already exists."
+                )
+                return
             update_labor(labor_id, data["service_name"])
             self.load_data()
     

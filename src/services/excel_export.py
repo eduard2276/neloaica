@@ -7,6 +7,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 from openpyxl.drawing.image import Image as XlImage
+from openpyxl.styles import Border, Side
 from openpyxl.utils.units import cm_to_EMU
 
 from src.database.models.defects import get_defect_by_id
@@ -119,88 +120,164 @@ def generate_receipt_excel(receipt_data: dict) -> str:
     # B12: Client address
     sheet['B12'] = receipt_data.get('client_address', '')
     
-    # A14-A18: Defects by the client (max 5)
+    # ── Expandable defects / client-parts section (rows 13-18 baseline) ──────
+    # Template minimum: 5 data rows (rows 14-18).
+    #   Left  (defects): N_defects slots
+    #   Right (parts + signature): N_parts slots + 2 fixed signature rows
+    # If either side overflows, insert extra rows at row 17 (just before the
+    # signature rows). openpyxl shifts everything below that point automatically.
     defect_ids = receipt_data.get('defects', [])
+    part_ids   = receipt_data.get('parts', [])
     warning_messages = []
-    
-    if len(defect_ids) > 5:
-        warning_messages.append(f"Warning: {len(defect_ids)} defects found, only the first 5 were added to the receipt.")
-    
-    # Add up to 5 defects starting at A14
-    for i, defect_id in enumerate(defect_ids[:5]):
+
+    # Reusable border sides for the two expandable sections
+    _medium = Side(style='medium')
+    _none   = Side(style=None)
+
+    n_defects = len(defect_ids)
+    n_parts   = len(part_ids)
+    section_rows = max(5, n_defects, n_parts + 2)
+    extra_rows   = section_rows - 5
+
+    if extra_rows > 0:
+        sheet.insert_rows(17, amount=extra_rows)
+        # Copy formatting from row 14 (generic data row) to each inserted row
+        for new_row in range(17, 17 + extra_rows):
+            for col in range(1, sheet.max_column + 1):
+                source = sheet.cell(row=14, column=col)
+                target = sheet.cell(row=new_row, column=col)
+                if source.has_style:
+                    target.font         = source.font.copy()
+                    target.border       = source.border.copy()
+                    target.fill         = source.fill.copy()
+                    target.number_format = source.number_format
+                    target.protection   = source.protection.copy()
+                    target.alignment    = source.alignment.copy()
+
+        # The template has a medium bottom border on C16:F16 that visually
+        # separates the parts data from the 'Renunt la garantia' row.
+        # After inserting rows the border must sit on the last row before
+        # 'Renunt', which is now row 16 + extra_rows.  Move it there.
+        _medium = Side(style='medium')
+        _none   = Side(style=None)
+        # Remove bottom from original row 16 (C–F)
+        for col_idx in range(3, 7):          # C=3, D=4, E=5, F=6
+            cell = sheet.cell(row=16, column=col_idx)
+            old  = cell.border
+            cell.border = Border(
+                left=old.left, top=old.top, right=old.right, bottom=_none
+            )
+        # Add medium bottom to the new last data row (16 + extra_rows)
+        new_border_row = 16 + extra_rows
+        for col_idx in range(3, 7):
+            cell = sheet.cell(row=new_border_row, column=col_idx)
+            old  = cell.border
+            cell.border = Border(
+                left=old.left, top=old.top, right=old.right, bottom=_medium
+            )
+
+    # All sections below the rectangle shift by this offset
+    row_offset = extra_rows
+
+    # Write ALL defects starting at A14 (no hard limit; section has expanded)
+    for i, defect_id in enumerate(defect_ids):
         defect = get_defect_by_id(defect_id)
         if defect:
-            cell_row = 14 + i  # A14, A15, A16, A17, A18
-            sheet[f'A{cell_row}'] = defect['defect_name']
-    
-    # A20-A24: Discovered defects (max 5)
-    discovered_defect_ids = receipt_data.get('discovered_defects', [])
-    
-    if len(discovered_defect_ids) > 5:
-        warning_messages.append(f"Warning: {len(discovered_defect_ids)} discovered defects found, only the first 5 were added to the receipt.")
-    
-    # Add up to 5 discovered defects starting at A20
-    for i, defect_id in enumerate(discovered_defect_ids[:5]):
-        defect = get_defect_by_id(defect_id)
-        if defect:
-            cell_row = 20 + i  # A20, A21, A22, A23, A24
-            sheet[f'A{cell_row}'] = defect['defect_name']
-    
-    # C14-C17: Parts received from client (max 4)
-    part_ids = receipt_data.get('parts', [])
-    
-    if len(part_ids) > 4:
-        warning_messages.append(f"Warning: {len(part_ids)} parts received found, only the first 4 were added to the receipt.")
-    
-    # Add up to 4 parts starting at C14
-    for i, part_id in enumerate(part_ids[:4]):
+            sheet[f'A{14 + i}'] = defect['defect_name']
+
+    # Write ALL client parts starting at C14 (no hard limit)
+    for i, part_id in enumerate(part_ids):
         part = get_part_by_id(part_id)
         if part:
-            cell_row = 14 + i  # C14, C15, C16, C17
-            sheet[f'C{cell_row}'] = part['part_name']
-    
-    # Labor services starting at B36
+            sheet[f'C{14 + i}'] = part['part_name']
+
+    # A(20+row_offset)..A(24+row_offset+disc_extra): Discovered defects section
+    # When n_discovered > 5, extra rows are inserted AFTER the section bottom
+    # (at row 25 + row_offset), expanding the box downward.
+    # The right-panel text ("Accept lucrarile", "Semnatura client:") sits at
+    # rows 20+row_offset and 21+row_offset — ABOVE the insertion point — so it
+    # never moves due to the discovered-section expansion.
+    discovered_defect_ids = receipt_data.get('discovered_defects', [])
+    n_discovered = len(discovered_defect_ids)
+    disc_extra_rows = max(0, n_discovered - 5)
+
+    if disc_extra_rows > 0:
+        disc_insert_at = 25 + row_offset   # row immediately after section bottom
+        sheet.insert_rows(disc_insert_at, amount=disc_extra_rows)
+
+        # Copy formatting from a data row inside the section
+        source_disc_row = 20 + row_offset
+        for new_row in range(disc_insert_at, disc_insert_at + disc_extra_rows):
+            for col in range(1, sheet.max_column + 1):
+                source = sheet.cell(row=source_disc_row, column=col)
+                target = sheet.cell(row=new_row, column=col)
+                if source.has_style:
+                    target.font          = source.font.copy()
+                    target.border        = source.border.copy()
+                    target.fill          = source.fill.copy()
+                    target.number_format = source.number_format
+                    target.protection    = source.protection.copy()
+                    target.alignment     = source.alignment.copy()
+
+        # Move medium bottom border from old row 24+row_offset to new bottom row
+        old_bottom = 24 + row_offset
+        new_bottom = old_bottom + disc_extra_rows
+        for col_idx in range(1, 7):          # A=1 .. F=6
+            cell = sheet.cell(row=old_bottom, column=col_idx)
+            old  = cell.border
+            cell.border = Border(left=old.left, top=old.top, right=old.right, bottom=_none)
+        for col_idx in range(1, 7):
+            cell = sheet.cell(row=new_bottom, column=col_idx)
+            old  = cell.border
+            cell.border = Border(left=old.left, top=old.top, right=old.right, bottom=_medium)
+
+    # Total offset for all sections below the discovered-defects box
+    total_offset = row_offset + disc_extra_rows
+
+    # Write ALL discovered defects (no hard limit; section has expanded)
+    for i, defect_id in enumerate(discovered_defect_ids):
+        defect = get_defect_by_id(defect_id)
+        if defect:
+            sheet[f'A{20 + row_offset + i}'] = defect['defect_name']
+
+    # Labor services starting at B(36 + total_offset)
     labor_ids = receipt_data.get('labor', [])
     total_labor_cost = receipt_data.get('total_labor_cost', 0.0)
-    
-    # Add labor services starting at row 36
+
+    labor_row_base = 36 + total_offset
+
     for i, labor_id in enumerate(labor_ids):
         labor = get_labor_by_id(labor_id)
         if labor:
-            current_row = 36 + i
-            # If this is not the first labor item, copy the previous row to maintain formatting
+            current_row = labor_row_base + i
             if i > 0:
-                # Copy row 36 to create a new row with the same formatting
                 sheet.insert_rows(current_row)
                 for col in range(1, sheet.max_column + 1):
-                    source_cell = sheet.cell(row=36, column=col)
+                    source_cell = sheet.cell(row=labor_row_base, column=col)
                     target_cell = sheet.cell(row=current_row, column=col)
-                    # Copy cell formatting
                     if source_cell.has_style:
-                        target_cell.font = source_cell.font.copy()
-                        target_cell.border = source_cell.border.copy()
-                        target_cell.fill = source_cell.fill.copy()
+                        target_cell.font         = source_cell.font.copy()
+                        target_cell.border       = source_cell.border.copy()
+                        target_cell.fill         = source_cell.fill.copy()
                         target_cell.number_format = source_cell.number_format
-                        target_cell.protection = source_cell.protection.copy()
-                        target_cell.alignment = source_cell.alignment.copy()
-            # Add labor service name to column B
+                        target_cell.protection   = source_cell.protection.copy()
+                        target_cell.alignment    = source_cell.alignment.copy()
             sheet[f'B{current_row}'] = labor['service_name']
     
-    # Add total labor cost to column E at the next row after all labor items
+    # Add total labor cost at the next row after all labor items
     if labor_ids:
-        total_row = 36 + len(labor_ids)
+        total_row = labor_row_base + len(labor_ids)
         sheet[f'E{total_row}'] = total_labor_cost
-        # Add TVA for labor at column F (extract TVA from price that includes TVA)
         tva_percentage = get_tva()
         labor_tva = (total_labor_cost * tva_percentage) / (100 + tva_percentage)
         sheet[f'F{total_row}'] = labor_tva
-    
-    # Parts Used section - starts at row 42, adjusted for labor rows added
+
+    # Parts Used section: base row 42, shifted by (N_labor-1) inserts + total_offset
+    #   N=0 → 42,  N=1 → 42,  N=2 → 43,  N=3 → 44  (then + total_offset)
     billable_parts = receipt_data.get('billable_parts', [])
     total_parts_cost = receipt_data.get('total_parts_cost', 0.0)
-    
-    # Calculate the starting row for parts (base 42 + number of labor items)
-    parts_start_row = 41 + len(labor_ids)
+
+    parts_start_row = 42 + max(0, len(labor_ids) - 1) + total_offset
     
     # Add billable parts starting at the calculated row
     for i, part_data in enumerate(billable_parts):
@@ -242,23 +319,28 @@ def generate_receipt_excel(receipt_data: dict) -> str:
         total_parts_tva = (total_parts_cost * tva_percentage) / (100 + tva_percentage)
         sheet[f'F{total_parts_row}'] = total_parts_tva
     
-    # Grand total row (Total Labor + Total Parts) at the next row after total parts
+    # Grand total row (Total Labor + Total Parts) at the next row after total parts.
+    # Template base: grand total lives at row 44 (no inserts).
+    # Each extra labor row (N-1 inserts for N items) and each extra billable-parts
+    # row (M-1 inserts for M items) shifts every row below it down by 1.
     grand_total = total_labor_cost + total_parts_cost
     if billable_parts:
         grand_total_row = total_parts_row + 1
     elif labor_ids:
-        grand_total_row = 36 + len(labor_ids) + 1
+        # No billable-parts inserts; only labor inserts (N-1) shift base row 44.
+        # 44 + (N-1) + total_offset = 43 + N + total_offset
+        grand_total_row = 43 + len(labor_ids) + total_offset
     else:
-        grand_total_row = 42
+        grand_total_row = 44 + total_offset
     
     tva_percentage = get_tva()
     grand_total_tva = (grand_total * tva_percentage) / (100 + tva_percentage)
     sheet[f'F{grand_total_row}'] = grand_total
     
-    # Executant name - base row 50, shifted by extra labor/parts rows
+    # Executant name row: base 50, shifted by extra labor/parts rows + total_offset
     extra_labor_rows = max(0, len(labor_ids) - 1)
     extra_parts_rows = max(0, len(billable_parts) - 1)
-    executant_row = 50 + extra_labor_rows + extra_parts_rows
+    executant_row = 50 + extra_labor_rows + extra_parts_rows + total_offset
     executant_name = receipt_data.get('executant_name', '')
     if executant_name:
         sheet[f'B{executant_row}'] = executant_name

@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QSize
 
-from src.database.models.labor import get_all_labor, add_labor as add_labor_to_db
+from src.database.models.labor import get_all_labor, add_labor as add_labor_to_db, get_labor_by_name
 from src.widgets import NoScrollComboBox
 from src.styles import theme
 from src.utils import show_warning, show_info, show_critical
@@ -338,7 +338,15 @@ class LaborSectionWidget(QWidget):
         dialog = AddLaborDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             service_name = dialog.get_service_name()
-            
+
+            existing = get_labor_by_name(service_name)
+            if existing:
+                show_warning(
+                    self, "Duplicate Entry",
+                    f"A service named '{existing['service_name']}' already exists."
+                )
+                return
+
             # Add to database
             try:
                 labor_id = add_labor_to_db(service_name)

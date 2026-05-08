@@ -2,7 +2,7 @@
 
 **Automotive Service Management System**
 
-A desktop database management application for small to medium automotive service businesses. Built with Python and PySide6 (Qt6), Neloaica provides a user-friendly interface for managing clients, vehicles, services, parts, defects, and generating service receipts with Excel export.
+A desktop database management application for small to medium automotive service businesses. Built with Python and PySide6 (Qt6), Neloaica provides a user-friendly interface for managing clients, vehicles, employees, services, parts, defects, and generating service receipts with Excel export.
 
 ---
 
@@ -93,7 +93,8 @@ On first launch, the application automatically:
 │  │  • Cars     │  │  │ • Labor Page                │    │   │
 │  │  • Labor    │  │  │ • Parts Page                │    │   │
 │  │  • Parts    │  │  │ • Defects Page              │    │   │
-│  │  • Defects  │  │  │ • Receipts Page (Complex)   │    │   │
+│  │  • Defects  │  │  │ • Employees Page            │    │   │
+│  │  • Employees│  │  │ • Receipts Page (Complex)   │    │   │
 │  │  • Receipts │  │  │ • Dashboard Page            │    │   │
 │  │  • Dashboard│  │  │ • Settings Page             │    │   │
 │  │  • Settings │  │  └─────────────────────────────┘    │   │
@@ -107,7 +108,8 @@ On first launch, the application automatically:
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │              Database Models Layer (per-entity CRUD)         │
-│  clients │ cars │ labor │ parts │ defects │ settings        │
+│  clients │ cars │ labor │ parts │ defects │ employees │      │
+│  settings │ receipts                                         │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -151,6 +153,8 @@ Neloaica/
 │   │       ├── labor.py             # Labor CRUD (id, service_name)
 │   │       ├── parts.py             # Parts CRUD (id, part_name)
 │   │       ├── defects.py           # Defects CRUD (id, defect_name)
+│   │       ├── employees.py         # Employee CRUD (id, first_name, last_name)
+│   │       ├── receipts.py          # Receipt CRUD (full receipt data, JSON fields)
 │   │       └── settings.py          # Settings: get_tva(), update_tva(), get_all_settings()
 │   │
 │   ├── pages/
@@ -160,6 +164,7 @@ Neloaica/
 │   │   ├── labor.py                 # LaborPage + LaborDialog
 │   │   ├── parts.py                 # PartsPage + PartDialog
 │   │   ├── defects.py               # DefectsPage + DefectDialog
+│   │   ├── employees.py             # EmployeesPage + EmployeeDialog
 │   │   ├── dashboard.py             # DashboardPage + StatCard
 │   │   ├── settings.py              # SettingsPage (TVA management)
 │   │   └── receipts/                # Receipt builder subpackage
@@ -190,6 +195,28 @@ Neloaica/
 ├── exports/receipts/                # Generated Excel receipts (runtime, git-ignored)
 ├── tests/
 │   ├── __init__.py
+│   ├── db/                          # Model-layer tests (real in-memory SQLite)
+│   │   ├── __init__.py
+│   │   ├── conftest.py              # Shared in-memory DB fixture
+│   │   ├── test_labor_model.py
+│   │   ├── test_parts_model.py
+│   │   ├── test_defects_model.py
+│   │   ├── test_employees_model.py
+│   │   └── test_receipts_model.py
+│   ├── excel/                       # Excel export tests
+│   │   ├── test_export.py
+│   │   ├── test_section_expansion.py
+│   │   ├── test_combinations.py
+│   │   ├── test_layout_invariants.py
+│   │   └── test_disc_section_expansion.py
+│   ├── ui/                          # Page/widget-layer tests (mocked DB)
+│   │   ├── test_main_window.py
+│   │   ├── test_receipt_form.py
+│   │   ├── test_receipts_list.py
+│   │   ├── test_receipts_sort.py
+│   │   ├── test_duplicate_guard.py          # CRUD page duplicate prevention
+│   │   ├── test_receipt_duplicate_guard.py  # Receipt form duplicate prevention
+│   │   └── test_section_inline_add_duplicate.py  # Receipt section ➕ button guards
 │   └── test_main.py
 │
 ├── neloaica.db                      # SQLite database (runtime, git-ignored)
@@ -207,7 +234,8 @@ Neloaica/
 | `LaborPage` | Service catalog | Service type management |
 | `PartsPage` | Parts inventory | Parts catalog management |
 | `DefectsPage` | Defects registry | Defect description tracking |
-| `ReceiptsPage` | Receipt creation | Multi-section form, grand total, Excel export |
+| `EmployeesPage` | Employee management | CRUD, search, executant assignment |
+| `ReceiptsPage` | Receipt creation | Multi-section form, grand total, Excel export, DB persistence |
 | `DashboardPage` | Statistics overview | Summary cards, auto-reload on show |
 | `SettingsPage` | Configuration | TVA/VAT % with validation (0-100) |
 
@@ -230,17 +258,18 @@ ReceiptsPage (orchestrator)
 
 ### Model Functions (per entity)
 
-Each model module (`clients.py`, `cars.py`, `labor.py`, `parts.py`, `defects.py`) provides:
+Each model module (`clients.py`, `cars.py`, `labor.py`, `parts.py`, `defects.py`, `employees.py`) provides:
 - `create_<entity>_table()` — DDL via `CREATE TABLE IF NOT EXISTS`
 - `populate_<entity>_mock_data()` — Insert demo data (checks if empty first)
 - `get_all_<entity>()` — Read all records (returns `list[dict]`)
 - `get_<entity>_by_id(id)` — Read single record
+- `get_<entity>_by_name(name)` — Case-insensitive lookup; used for **duplicate prevention** before add/update
 - `add_<entity>(...)` — Insert, returns new ID
 - `update_<entity>(id, ...)` — Modify existing record
 - `delete_<entity>(id)` — Remove record
 - `get_<entity>_count()` — Aggregate count
 
-Special functions: `get_clients_for_dropdown()`, `update_car_kilometers()`, `get_tva()`, `update_tva()`.
+Special functions: `get_clients_for_dropdown()`, `update_car_kilometers()`, `get_employees_for_dropdown()`, `get_employee_by_name(first_name, last_name)` (pair uniqueness), `get_receipt_by_plate_and_date(plate, date, exclude_id)`, `get_tva()`, `update_tva()`.
 
 ---
 
@@ -260,12 +289,13 @@ Special functions: `get_clients_for_dropdown()`, `update_car_kilometers()`, `get
                       │ kilometers  │
                       └─────────────┘
 
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│    LABOR    │  │    PARTS    │  │   DEFECTS   │  │  SETTINGS   │
-├─────────────┤  ├─────────────┤  ├─────────────┤  ├─────────────┤
-│ id (PK)     │  │ id (PK)     │  │ id (PK)     │  │ id=1 (PK)   │
-│ service_name│  │ part_name   │  │ defect_name │  │ tva (21.0%) │
-└─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│    LABOR    │  │    PARTS    │  │   DEFECTS   │  │  EMPLOYEES  │  │  SETTINGS   │
+├─────────────┤  ├─────────────┤  ├─────────────┤  ├─────────────┤  ├─────────────┤
+│ id (PK)     │  │ id (PK)     │  │ id (PK)     │  │ id (PK)     │  │ id=1 (PK)   │
+│ service_name│  │ part_name   │  │ defect_name │  │ first_name  │  │ tva (21.0%) │
+└─────────────┘  └─────────────┘  └─────────────┘  │ last_name   │  └─────────────┘
+                                                    └─────────────┘
 ```
 
 ### Table Definitions
@@ -324,7 +354,19 @@ CREATE TABLE settings (
 
 ## Key Features
 
-### Receipt Generation (Excel Export)
+### Duplicate Prevention
+
+All catalog entities (Labor, Parts, Defects, Employees) enforce uniqueness at the **application layer** using case-insensitive name lookups before any insert or update:
+
+- **Add**: `get_X_by_name()` called first; if a match is found a `"Duplicate Entry"` warning is shown and the insert is aborted.
+- **Edit**: same check, but the record's own ID is excluded so a no-op rename is allowed.
+- **Employees**: uniqueness is on the `(first_name, last_name)` **pair** — two people can share a first or last name.
+- **Receipts**: uniqueness is on `(plate_number, date)` — the same car cannot have two receipts on the same day. Enforced in both `Save Receipt` and `Generate & Finish` paths, including `exclude_id` support when editing.
+- **Receipt section ➕ buttons**: inline add dialogs (Defects, Parts, Labor, Billable Parts sections) apply the same duplicate check before inserting into the catalog.
+
+### Receipt Persistence
+
+Receipts are **saved to the `receipts` table** in the SQLite database. The `Save Receipt` button persists a receipt with status `Ongoing`; `Generate & Finish` generates the Excel file and marks status as `Done`. JSON-serialized fields (defects, parts, labor, billable_parts) are decoded back to Python lists on read.
 
 Receipts are generated from `templates/Template-deviz.xlsx` into `exports/receipts/Deviz_<Client>_<Timestamp>.xlsx`.
 
@@ -469,6 +511,8 @@ Switch via: `theme.set_theme("dark")`
 
 **Validation**: Dialog-level required field checks, VIN length (17 chars), TVA range (0–100%), kilometers digit-only filtering.
 
+**Duplicate detection**: Before any catalog insert or receipt save, a case-insensitive lookup (`get_X_by_name()` / `get_receipt_by_plate_and_date()`) is performed. Conflicts are shown as a `"Duplicate Entry"` or `"Duplicate Receipt"` warning dialog and the write is aborted. This applies on all four catalog pages, all four receipt section inline-add buttons, and both receipt save paths.
+
 **Database**: SQLite constraints (`NOT NULL`, `UNIQUE`, `FOREIGN KEY`) act as safety net. Unique VIN violations caught and shown to user.
 
 **Excel Export**: Template existence check, client selection validation, try/catch with `QMessageBox.critical()`, truncation warnings when data exceeds template limits.
@@ -553,11 +597,10 @@ THEMES = { "light": LIGHT_THEME, "dark": DARK_THEME, "my_theme": MY_THEME }
 6. **Simple search only** — Substring matching, no fuzzy search or advanced filtering
 7. **Single database file** — No support for multiple databases or profiles
 8. **No audit trail** — No change history for records
-9. **No receipt persistence** — Receipts exported to Excel but not saved in the database
-10. **Windows-only auto-open** — `os.startfile()` for generated files is Windows-specific
-11. **Missing pyproject.toml dependency** — `openpyxl` is in `requirements.txt` but not in `pyproject.toml`
-12. **Debug print statements** — `excel_export.py` contains `print()` debug logging (should use `logging` module)
-13. **Eager loading** — All pages load data at startup; no pagination; suitable for <10,000 records per table
+9. **Windows-only auto-open** — `os.startfile()` for generated files is Windows-specific
+10. **Missing pyproject.toml dependency** — `openpyxl` is in `requirements.txt` but not in `pyproject.toml`
+11. **Debug print statements** — `excel_export.py` contains `print()` debug logging (should use `logging` module)
+12. **Eager loading** — All pages load data at startup; no pagination; suitable for <10,000 records per table
 
 ---
 
@@ -565,9 +608,9 @@ THEMES = { "light": LIGHT_THEME, "dark": DARK_THEME, "my_theme": MY_THEME }
 
 This is a **single-threaded desktop database management tool** built with **Python 3.9+ and PySide6 (Qt6)**. Layered architecture: UI (pages) → Services (Excel export) → Models (CRUD) → DatabaseConnection (singleton) → SQLite.
 
-**Key architectural decisions**: Singleton DB connection + theme manager, per-entity model modules, signal-based receipt sections, centralized ThemeManager with light/dark support, template-based Excel export, mock data auto-population.
+**Key architectural decisions**: Singleton DB connection + theme manager, per-entity model modules, signal-based receipt sections, centralized ThemeManager with light/dark support, template-based Excel export, mock data auto-population, application-layer duplicate prevention (case-insensitive `get_X_by_name()` lookups) for all catalog entities and receipts.
 
-**Primary use cases**: Managing clients, tracking vehicles per client, maintaining service/parts/defect catalogs, building and exporting service receipts, configuring TVA/VAT.
+**Primary use cases**: Managing clients, tracking vehicles per client, managing employees/executants, maintaining service/parts/defect catalogs, building and exporting service receipts (persisted to DB), configuring TVA/VAT.
 
 **Code generation guidelines**:
 - Use type hints for function signatures

@@ -44,6 +44,16 @@ def add_employee(first_name: str, last_name: str) -> int:
     return cursor.lastrowid
 
 
+def get_employee_by_name(first_name: str, last_name: str) -> dict | None:
+    """Return employee with this first+last name (case-insensitive), or None."""
+    db = DatabaseConnection()
+    return db.fetchone(
+        "SELECT id, first_name, last_name FROM employees "
+        "WHERE LOWER(first_name) = LOWER(?) AND LOWER(last_name) = LOWER(?)",
+        (first_name, last_name),
+    )
+
+
 def update_employee(employee_id: int, first_name: str, last_name: str):
     """Update an existing employee."""
     db = DatabaseConnection()

@@ -1,5 +1,6 @@
 """Receipts page - Table list of receipts with create/edit/delete via browser-like tabs."""
 
+from datetime import datetime
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -92,6 +93,54 @@ class ReceiptsPage(QWidget):
         self.filter_btn.clicked.connect(self.open_filter_dialog)
         toolbar_layout.addWidget(self.filter_btn)
 
+        toolbar_layout.addSpacing(20)
+
+        sort_label = QLabel("Sort:")
+        sort_label.setStyleSheet(
+            "font-size: 13px; font-weight: bold; color: #555; margin-right: 2px;"
+        )
+        toolbar_layout.addWidget(sort_label)
+
+        self.sort_combo = NoScrollComboBox()
+        for opt in [
+            "Date: Newest first",
+            "Date: Oldest first",
+            "Grand Total: High to low",
+            "Grand Total: Low to high",
+            "Client: A to Z",
+            "Client: Z to A",
+        ]:
+            self.sort_combo.addItem(opt)
+        self.sort_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #ffffff;
+                border: 1px solid #bdc3c7;
+                border-radius: 6px;
+                padding: 6px 28px 6px 10px;
+                font-size: 13px;
+                color: #2c3e50;
+                min-height: 28px;
+                min-width: 190px;
+            }
+            QComboBox:hover {
+                border-color: #3498db;
+            }
+            QComboBox::drop-down {
+                border: none;
+                padding-right: 8px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #ffffff;
+                border: 1px solid #bdc3c7;
+                color: #2c3e50;
+                selection-background-color: #3498db;
+                selection-color: #ffffff;
+                padding: 2px;
+            }
+        """)
+        self.sort_combo.currentIndexChanged.connect(self.apply_filters)
+        toolbar_layout.addWidget(self.sort_combo)
+
         layout.addLayout(toolbar_layout)
 
         self.filter_indicator = QLabel()
@@ -147,6 +196,48 @@ class ReceiptsPage(QWidget):
                 if search_text in r.get('client_name', '').lower()
                 or search_text in r.get('car_model', '').lower()
             ]
+
+        # Sort according to the selected option in sort_combo.
+        sort_text = (
+            self.sort_combo.currentText()
+            if hasattr(self, 'sort_combo')
+            else "Date: Newest first"
+        )
+
+        if sort_text.startswith("Date:"):
+            descending = sort_text == "Date: Newest first"
+            invalid_sentinel = datetime.min if descending else datetime.max
+
+            def _date_key(r):
+                try:
+                    return datetime.strptime(r.get('date', ''), "%d.%m.%Y")
+                except ValueError:
+                    return invalid_sentinel
+
+            filtered = sorted(filtered, key=_date_key, reverse=descending)
+
+        elif sort_text == "Grand Total: High to low":
+            filtered = sorted(
+                filtered,
+                key=lambda r: float(r.get('grand_total') or 0),
+                reverse=True,
+            )
+        elif sort_text == "Grand Total: Low to high":
+            filtered = sorted(
+                filtered,
+                key=lambda r: float(r.get('grand_total') or 0),
+            )
+        elif sort_text == "Client: A to Z":
+            filtered = sorted(
+                filtered,
+                key=lambda r: r.get('client_name', '').lower(),
+            )
+        elif sort_text == "Client: Z to A":
+            filtered = sorted(
+                filtered,
+                key=lambda r: r.get('client_name', '').lower(),
+                reverse=True,
+            )
 
         self.display_receipts(filtered)
 
@@ -264,6 +355,7 @@ class ReceiptsPage(QWidget):
         form.receipt_saved.connect(self.load_data)
         form.close_requested.connect(lambda f=form: self._close_form_tab(f))
         form.tab_title_changed.connect(lambda title, f=form: self._update_tab_title(f, title))
+        form.receipt_id_assigned.connect(lambda rid, k=key, f=form: self._remap_tab_key(k, rid, f))
 
         if receipt_id is not None:
             receipt = next((r for r in self.all_receipts if r["id"] == receipt_id), None)
@@ -284,6 +376,12 @@ class ReceiptsPage(QWidget):
         tab_index = self.tab_widget.indexOf(form_widget)
         if tab_index != -1:
             self.tab_widget.setTabText(tab_index, title)
+
+    def _remap_tab_key(self, old_key: str, receipt_id: int, form_widget):
+        """Remap a 'new:N' key to 'edit:<id>' once a receipt has been saved to the DB."""
+        if old_key in self._open_receipt_tabs:
+            del self._open_receipt_tabs[old_key]
+        self._open_receipt_tabs[f"edit:{receipt_id}"] = form_widget
 
     def _close_form_tab(self, form_widget):
         """Close the tab containing the given form widget."""

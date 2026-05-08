@@ -181,3 +181,32 @@ def get_receipts_count() -> int:
     db = DatabaseConnection()
     result = db.fetchone("SELECT COUNT(*) as count FROM receipts")
     return result["count"] if result else 0
+
+
+def get_receipt_by_plate_and_date(
+    plate_number: str, date: str, exclude_id: int | None = None
+) -> dict | None:
+    """Return a receipt matching plate_number + date, or None.
+
+    The match is case-insensitive on plate_number.  Pass *exclude_id* when
+    checking for duplicates during an update so the record being edited is
+    not considered a conflict with itself.
+
+    Returns None (no conflict) when either plate_number or date is empty.
+    """
+    if not plate_number or not date:
+        return None
+    db = DatabaseConnection()
+    if exclude_id is not None:
+        row = db.fetchone(
+            "SELECT id, client_name, plate_number, date FROM receipts "
+            "WHERE LOWER(plate_number) = LOWER(?) AND date = ? AND id != ?",
+            (plate_number, date, exclude_id),
+        )
+    else:
+        row = db.fetchone(
+            "SELECT id, client_name, plate_number, date FROM receipts "
+            "WHERE LOWER(plate_number) = LOWER(?) AND date = ?",
+            (plate_number, date),
+        )
+    return row

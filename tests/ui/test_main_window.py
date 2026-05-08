@@ -1,4 +1,4 @@
-"""Tests for the main application."""
+"""Tests for the main application window."""
 
 import pytest
 from PySide6.QtWidgets import QApplication

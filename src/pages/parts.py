@@ -21,6 +21,7 @@ from src.database.models import (
     add_part,
     update_part,
     delete_part,
+    get_part_by_name,
 )
 from src.styles import theme
 from src.utils import show_warning
@@ -253,6 +254,13 @@ class PartsPage(QWidget):
         dialog = PartDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
+            existing = get_part_by_name(data["part_name"])
+            if existing:
+                show_warning(
+                    self, "Duplicate Entry",
+                    f"A part named '{existing['part_name']}' already exists."
+                )
+                return
             add_part(data["part_name"])
             self.load_data()
 
@@ -311,6 +319,13 @@ class PartsPage(QWidget):
         dialog = PartDialog(self, part_data)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
+            existing = get_part_by_name(data["part_name"])
+            if existing and existing["id"] != part_id:
+                show_warning(
+                    self, "Duplicate Entry",
+                    f"A part named '{existing['part_name']}' already exists."
+                )
+                return
             update_part(part_id, data["part_name"])
             self.load_data()
     

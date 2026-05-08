@@ -70,6 +70,15 @@ def add_labor(service_name: str) -> int:
     return cursor.lastrowid
 
 
+def get_labor_by_name(service_name: str) -> dict | None:
+    """Return the labor entry with this service_name (case-insensitive), or None."""
+    db = DatabaseConnection()
+    return db.fetchone(
+        "SELECT id, service_name FROM labor WHERE LOWER(service_name) = LOWER(?)",
+        (service_name,),
+    )
+
+
 def update_labor(labor_id: int, service_name: str):
     """Update an existing labor service."""
     db = DatabaseConnection()
