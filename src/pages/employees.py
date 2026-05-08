@@ -21,6 +21,7 @@ from src.database.models import (
     add_employee,
     update_employee,
     delete_employee,
+    get_employee_by_name,
 )
 from src.styles import theme
 from src.utils import show_warning
@@ -231,6 +232,13 @@ class EmployeesPage(QWidget):
         dialog = EmployeeDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
+            existing = get_employee_by_name(data["first_name"], data["last_name"])
+            if existing:
+                show_warning(
+                    self, "Duplicate Entry",
+                    f"An employee named '{existing['first_name']} {existing['last_name']}' already exists."
+                )
+                return
             add_employee(data["first_name"], data["last_name"])
             self.load_data()
             self.search_input.clear()
@@ -255,6 +263,13 @@ class EmployeesPage(QWidget):
         dialog = EmployeeDialog(self, emp)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
+            existing = get_employee_by_name(data["first_name"], data["last_name"])
+            if existing and existing["id"] != employee_id:
+                show_warning(
+                    self, "Duplicate Entry",
+                    f"An employee named '{existing['first_name']} {existing['last_name']}' already exists."
+                )
+                return
             update_employee(emp["id"], data["first_name"], data["last_name"])
             self.load_data()
             self.filter_employees(self.search_input.text())

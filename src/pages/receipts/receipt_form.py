@@ -25,6 +25,7 @@ from src.database.models.receipts import (
     add_receipt,
     update_receipt,
     get_receipt_by_id,
+    get_receipt_by_plate_and_date,
 )
 from src.styles import theme
 from src.utils import show_warning, show_info, show_critical
@@ -36,6 +37,7 @@ class ReceiptFormPage(QWidget):
     close_requested = Signal()
     receipt_saved = Signal()
     tab_title_changed = Signal(str)
+    receipt_id_assigned = Signal(int)  # fired once when a new receipt gets its DB id
 
     def __init__(self):
         super().__init__()
@@ -231,6 +233,18 @@ class ReceiptFormPage(QWidget):
         self.labor_widget.load_data(restore_state=restore_state)
         self.billable_parts_widget.load_data(restore_state=restore_state)
 
+    def showEvent(self, event):
+        """Reload catalog dropdowns when the tab is switched back to this form.
+
+        Preserves all in-progress selections (restore_state=True) so the user
+        does not lose unsaved work.  This ensures that services or parts added
+        in other pages appear in the combo boxes without having to open a new
+        receipt tab.
+        """
+        super().showEvent(event)
+        if hasattr(self, 'labor_widget'):
+            self._reload_all_data(restore_state=True)
+
     def on_receipt_info_changed(self, data: dict):
         """Handle receipt information data change."""
         self.receipt_data.update(data)
@@ -312,6 +326,19 @@ class ReceiptFormPage(QWidget):
             )
             return
 
+        plate = self.receipt_data.get('plate_number', '')
+        date = self.receipt_data.get('date', '')
+        existing = get_receipt_by_plate_and_date(
+            plate, date, exclude_id=self.editing_receipt_id
+        )
+        if existing:
+            show_warning(
+                self, "Duplicate Receipt",
+                f"A receipt for plate '{existing['plate_number']}' on {existing['date']} "
+                f"already exists (Receipt #{existing['id']})."
+            )
+            return
+
         data = self._collect_save_data()
         data['status'] = 'Ongoing'
 
@@ -322,6 +349,7 @@ class ReceiptFormPage(QWidget):
             new_id = add_receipt(data)
             self.editing_receipt_id = new_id
             self.title_label.setText(f"🧾 Edit Receipt #{new_id}")
+            self.receipt_id_assigned.emit(new_id)
             show_info(self, "Saved", f"Receipt #{new_id} has been created.")
 
         self._dirty = False
@@ -392,7 +420,18 @@ class ReceiptFormPage(QWidget):
             return
 
         create_backup("pre-receipt")
-
+        plate = self.receipt_data.get('plate_number', '')
+        date = self.receipt_data.get('date', '')
+        existing = get_receipt_by_plate_and_date(
+            plate, date, exclude_id=self.editing_receipt_id
+        )
+        if existing:
+            show_warning(
+                self, "Duplicate Receipt",
+                f"A receipt for plate '{existing['plate_number']}' on {existing['date']} "
+                f"already exists (Receipt #{existing['id']})."
+            )
+            return
         car_id = self.receipt_data.get('car_id')
         kilometers = self.receipt_data.get('kilometers', '')
         if car_id and kilometers:
@@ -411,6 +450,7 @@ class ReceiptFormPage(QWidget):
         else:
             new_id = add_receipt(data)
             self.editing_receipt_id = new_id
+            self.receipt_id_assigned.emit(new_id)
 
         self._dirty = False
         self.receipt_saved.emit()

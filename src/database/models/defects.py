@@ -73,6 +73,15 @@ def add_defect(defect_name: str) -> int:
     return cursor.lastrowid
 
 
+def get_defect_by_name(defect_name: str) -> dict | None:
+    """Return the defect entry with this defect_name (case-insensitive), or None."""
+    db = DatabaseConnection()
+    return db.fetchone(
+        "SELECT id, defect_name FROM defects WHERE LOWER(defect_name) = LOWER(?)",
+        (defect_name,),
+    )
+
+
 def update_defect(defect_id: int, defect_name: str):
     """Update an existing defect."""
     db = DatabaseConnection()

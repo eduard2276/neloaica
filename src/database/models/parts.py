@@ -73,6 +73,15 @@ def add_part(part_name: str) -> int:
     return cursor.lastrowid
 
 
+def get_part_by_name(part_name: str) -> dict | None:
+    """Return the part entry with this part_name (case-insensitive), or None."""
+    db = DatabaseConnection()
+    return db.fetchone(
+        "SELECT id, part_name FROM parts WHERE LOWER(part_name) = LOWER(?)",
+        (part_name,),
+    )
+
+
 def update_part(part_id: int, part_name: str):
     """Update an existing part."""
     db = DatabaseConnection()

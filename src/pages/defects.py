@@ -21,6 +21,7 @@ from src.database.models import (
     add_defect,
     update_defect,
     delete_defect,
+    get_defect_by_name,
 )
 from src.styles import theme
 from src.utils import show_warning
@@ -253,6 +254,13 @@ class DefectsPage(QWidget):
         dialog = DefectDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
+            existing = get_defect_by_name(data["defect_name"])
+            if existing:
+                show_warning(
+                    self, "Duplicate Entry",
+                    f"A defect named '{existing['defect_name']}' already exists."
+                )
+                return
             add_defect(data["defect_name"])
             self.load_data()
 
@@ -311,6 +319,13 @@ class DefectsPage(QWidget):
         dialog = DefectDialog(self, defect_data)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
+            existing = get_defect_by_name(data["defect_name"])
+            if existing and existing["id"] != defect_id:
+                show_warning(
+                    self, "Duplicate Entry",
+                    f"A defect named '{existing['defect_name']}' already exists."
+                )
+                return
             update_defect(defect_id, data["defect_name"])
             self.load_data()
     

@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QSize
 
-from src.database.models.parts import get_all_parts, add_part as add_part_to_db
+from src.database.models.parts import get_all_parts, add_part as add_part_to_db, get_part_by_name
 from src.widgets import NoScrollComboBox
 from src.styles import theme
 from src.utils import show_warning, show_info, show_critical
@@ -221,14 +221,14 @@ class BillablePartsSectionWidget(QWidget):
             return
         
         # Add to list with default values (empty units)
-        self.add_part(part_id, part["part_name"], 0, 0.0)
+        self.add_part(part_id, part["part_name"], 0.0, 0.0)
         
         # Reset combo box
         self.part_combo.blockSignals(True)
         self.part_combo.setCurrentIndex(0)
         self.part_combo.blockSignals(False)
     
-    def add_part(self, part_id: int, part_name: str, units: int = 0, price_per_unit: float = 0.0):
+    def add_part(self, part_id: int, part_name: str, units: float = 0.0, price_per_unit: float = 0.0):
         """Add a part to the list."""
         # Create list item
         list_item = QListWidgetItem()
@@ -259,10 +259,12 @@ class BillablePartsSectionWidget(QWidget):
         units_group_layout.addWidget(units_label)
         units_input = QLineEdit()
         units_input.setPlaceholderText("1")
-        units_input.setFixedWidth(50)
+        units_input.setFixedWidth(60)
         units_input.setStyleSheet(theme.line_edit())
         if units > 0:
-            units_input.setText(str(units))
+            units_input.setText(
+                str(int(units)) if units == int(units) else str(units)
+            )
         units_input.setProperty("part_id", part_id)
         units_input.textChanged.connect(lambda text, p_id=part_id, inp=units_input: self.on_units_text_changed(p_id, text, inp))
         units_group_layout.addWidget(units_input)
@@ -311,7 +313,7 @@ class BillablePartsSectionWidget(QWidget):
         self.selected_parts.append({
             "part_id": part_id,
             "part_name": part_name,
-            "units": units,
+            "units": float(units),
             "price_per_unit": price_per_unit
         })
         
@@ -400,7 +402,15 @@ class BillablePartsSectionWidget(QWidget):
         dialog = AddPartDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             part_name = dialog.get_part_name()
-            
+
+            existing = get_part_by_name(part_name)
+            if existing:
+                show_warning(
+                    self, "Duplicate Entry",
+                    f"A part named '{existing['part_name']}' already exists."
+                )
+                return
+
             # Add to database
             try:
                 part_id = add_part_to_db(part_name)
@@ -463,32 +473,55 @@ class BillablePartsSectionWidget(QWidget):
             return 0.0
     
     def on_units_text_changed(self, part_id: int, text: str, units_input: QLineEdit):
-        """Validate units input (integers only) and update part units."""
+        """Validate units input (decimals allowed; comma treated as decimal separator)."""
         if getattr(self, '_units_updating', False):
             return
         self._units_updating = True
-        
+
         cursor_pos = units_input.cursorPosition()
-        
-        # Keep only digits
-        digits = ''.join(c for c in text if c.isdigit())
-        
-        # Remove leading zeros but allow empty
-        if digits and len(digits) > 1:
-            digits = digits.lstrip('0') or '0'
-        
-        units_input.setText(digits)
-        units_input.setCursorPosition(min(cursor_pos, len(digits)))
-        
+        old_len = len(text)
+
+        # Normalize: treat comma as decimal separator (Romanian convention)
+        normalized = text.replace(',', '.')
+
+        # Keep only digits and the first decimal point
+        result = ''
+        has_dot = False
+        for c in normalized:
+            if c.isdigit():
+                result += c
+            elif c == '.' and not has_dot:
+                result += c
+                has_dot = True
+
+        # Remove leading zeros before decimal point
+        if '.' in result:
+            int_part, dec_part = result.split('.', 1)
+            if int_part and len(int_part) > 1:
+                int_part = int_part.lstrip('0') or '0'
+            result = int_part + '.' + dec_part
+        else:
+            if result and len(result) > 1:
+                result = result.lstrip('0') or '0'
+
+        new_len = len(result)
+        new_cursor = max(0, min(cursor_pos + (new_len - old_len), new_len))
+
+        units_input.setText(result)
+        units_input.setCursorPosition(new_cursor)
+
         # Update units in selected_parts
-        units_value = int(digits) if digits else 0
+        try:
+            units_value = float(result) if result and result != '.' else 0.0
+        except ValueError:
+            units_value = 0.0
         for part_item in self.selected_parts:
             if part_item["part_id"] == part_id:
                 part_item["units"] = units_value
                 break
-        
+
         self.update_subtotal_label(part_id)
-        
+
         self._units_updating = False
         self.emit_parts_changed()
     
@@ -566,7 +599,7 @@ class BillablePartsSectionWidget(QWidget):
                 self.add_part(
                     part_id,
                     part["part_name"],
-                    item.get("units", 0),
+                    item.get("units", 0.0),
                     item.get("price_per_unit", 0.0),
                 )
 

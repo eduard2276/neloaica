@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 
 from src.database.models import get_all_defects
-from src.database.models.defects import add_defect as add_defect_to_db
+from src.database.models.defects import add_defect as add_defect_to_db, get_defect_by_name
 from src.widgets import NoScrollComboBox
 from src.styles import theme
 from src.utils import show_warning, show_info, show_critical
@@ -276,6 +276,14 @@ class DefectsSectionWidget(QWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             defect_name = dialog.get_defect_name()
             
+            existing = get_defect_by_name(defect_name)
+            if existing:
+                show_warning(
+                    self, "Duplicate Entry",
+                    f"A defect named '{existing['defect_name']}' already exists."
+                )
+                return
+
             try:
                 # Add to database
                 new_defect_id = add_defect_to_db(defect_name)
