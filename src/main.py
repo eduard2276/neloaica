@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
+from src import __version__
 from src.pages import CarsPage, ClientsPage, DefectsPage, EmployeesPage, LaborPage, PartsPage, ReceiptsPage, SettingsPage
 from src.database import init_database
 from src.services import create_backup, should_create_daily_backup
@@ -113,7 +114,7 @@ def main():
     # Set application metadata
     app.setApplicationName("Neloaica")
     app.setOrganizationName("Nokia")
-    app.setApplicationVersion("1.0.0")
+    app.setApplicationVersion(__version__)
     
     # Initialize database (create tables if they don't exist)
     init_database()
