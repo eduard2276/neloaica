@@ -309,15 +309,24 @@ class UpdateApplier:
 
     def _popen(self, argv: Sequence[str]) -> None:
         """Tiny seam tests monkeypatch instead of running PowerShell."""
-        # ``DETACHED_PROCESS`` + ``CREATE_NEW_PROCESS_GROUP`` are
-        # Windows-only flags. We fall back to plain Popen on other
-        # platforms (relevant for the development environment / CI).
+        # ``DETACHED_PROCESS`` + ``CREATE_NEW_PROCESS_GROUP`` are the
+        # canonical Windows flags for "fire and forget" children.
+        # ``CREATE_BREAKAWAY_FROM_JOB`` (0x01000000) is critical for
+        # PyInstaller-built apps: PyInstaller's ``runw.exe`` bootloader
+        # runs inside a Windows Job Object that, by default, closes all
+        # children when the parent exits. Without breakaway, our helper
+        # PowerShell process is killed the instant we call ``app.quit()``
+        # — even if it was launched detached. We fall back to plain
+        # ``Popen`` on non-Windows platforms (CI / dev) where these
+        # flags are unavailable.
         creation_flags = 0
         if sys.platform == "win32":
-            creation_flags = (
-                subprocess.DETACHED_PROCESS  # type: ignore[attr-defined]
-                | subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+            DETACHED_PROCESS = subprocess.DETACHED_PROCESS  # type: ignore[attr-defined]
+            CREATE_NEW_PROCESS_GROUP = (
+                subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
             )
+            CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+            creation_flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB
         subprocess.Popen(
             list(argv),
             close_fds=True,
