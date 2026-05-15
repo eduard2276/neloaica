@@ -22,17 +22,30 @@ class DatabaseConnection:
             self._connect()
 
     def _get_db_path(self) -> Path:
-        """Get the database file path (same folder as the application)."""
-        from src.paths import get_app_dir
+        """Resolve the database file path.
 
-        return get_app_dir() / "neloaica.db"
+        The DB lives under :func:`src.paths.get_user_data_dir` so frozen
+        installs can place the executable in a read-only location while
+        runtime data goes into ``%LOCALAPPDATA%\\Neloaica`` (or the
+        platform equivalent).
+        """
+        from src.paths import get_database_path
+
+        return get_database_path()
 
     def _connect(self):
         """Establish database connection."""
+        # Make sure the parent directory exists. On a fresh install the
+        # user data dir does not yet exist, and ``sqlite3.connect`` will
+        # fail with ``unable to open database file`` if any component of
+        # the path is missing. The :memory: path used in tests has no
+        # parents so guard against that.
+        if str(self._db_path) != ":memory:":
+            parent = self._db_path.parent
+            if str(parent) and parent != Path("."):
+                parent.mkdir(parents=True, exist_ok=True)
         self._connection = sqlite3.connect(str(self._db_path), check_same_thread=False)
-        # Enable foreign keys
         self._connection.execute("PRAGMA foreign_keys = ON")
-        # Return rows as dictionaries
         self._connection.row_factory = sqlite3.Row
 
     @property
