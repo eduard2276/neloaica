@@ -32,7 +32,13 @@ from src.pages import (
     ReceiptsPage,
     SettingsPage,
 )
-from src.paths import get_app_dir, get_database_path, migrate_legacy_db
+from src.paths import (
+    get_app_dir,
+    get_backups_dir,
+    get_database_path,
+    migrate_legacy_db,
+    migrate_legacy_dir,
+)
 from src.services import create_backup, setup_logging, should_create_daily_backup
 from src.styles import theme
 
@@ -135,6 +141,18 @@ def bootstrap() -> None:
     new_db = get_database_path()
     if legacy_db != new_db and migrate_legacy_db(legacy_db, new_db):
         logger.info("Migrated legacy DB from %s to %s", legacy_db, new_db)
+
+    legacy_backups = get_app_dir() / "backups"
+    new_backups = get_backups_dir()
+    if legacy_backups != new_backups:
+        moved = migrate_legacy_dir(legacy_backups, new_backups)
+        if moved:
+            logger.info(
+                "Migrated %d legacy backup file(s) from %s to %s",
+                moved,
+                legacy_backups,
+                new_backups,
+            )
 
     init_database()
 
