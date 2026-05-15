@@ -15,6 +15,7 @@ from .updater import (
     UpdateDownloadError,
     UpdateError,
     UpdateInfo,
+    UpdateOrchestrator,
     Version,
 )
 
@@ -39,5 +40,6 @@ __all__ = [
     "UpdateDownloadError",
     "UpdateError",
     "UpdateInfo",
+    "UpdateOrchestrator",
     "Version",
 ]

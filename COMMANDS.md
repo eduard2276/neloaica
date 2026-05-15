@@ -186,6 +186,105 @@ existente lângă vechiul `.exe` în `%LOCALAPPDATA%\Neloaica\` (vezi log-ul din
 
 ---
 
+## Testarea auto-update-ului (end-to-end local)
+
+PR-urile #4-8 implementează un sistem complet de auto-update prin butonul
+**"🔄 Verifică actualizări"** din pagina **Settings**. Acesta:
+1. Apelează `UpdateChecker` care citește un manifest JSON de pe GitHub
+   (URL implicit: `raw.githubusercontent.com/.../main/update-manifest.json`).
+2. Dacă există versiune nouă, oferă să o descarce (`UpdateDownloader`
+   cu progress bar + verificare SHA-256).
+3. La final lansează un helper PowerShell care înlocuiește instalarea
+   curentă cu cea nouă și relansează aplicația.
+
+### Override URL manifest pentru testare
+
+Înainte ca PR #3 să fie merged pe `main`, manifestul **nu există** pe `main`,
+ci doar pe branch-ul `feature/auto-update-roadmap`. Pentru a testa local
+fără merge, setează variabila de mediu înainte să pornești aplicația:
+
+```powershell
+$env:NELOAICA_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/eduard2276/neloaica/feature/auto-update-roadmap/update-manifest.json"
+.\Neloaica.exe   # sau python -m src.main
+```
+
+Pentru un test izolat 100% (fără GitHub), folosește un fișier local:
+
+```powershell
+# Servește local cu http.server (din altă fereastră)
+cd C:\tmp\my-test-manifest
+python -m http.server 8000
+
+# In aplicație
+$env:NELOAICA_UPDATE_MANIFEST_URL = "http://localhost:8000/update-manifest.json"
+.\Neloaica.exe
+```
+
+### Scenariul recomandat de testare end-to-end
+
+```text
+Pas 1 (LOCAL)  — Build versiunea curentă ca "instalat":
+  python -m PyInstaller --noconfirm --clean Neloaica.spec
+  Move-Item dist\Neloaica C:\TestApp\Neloaica
+  C:\TestApp\Neloaica\Neloaica.exe        # confirmă că pornește
+
+Pas 2 (LOCAL)  — Bump versiunea + commit + tag:
+  # Edit src/__init__.py: __version__ = "1.0.1"
+  git add src/__init__.py
+  git commit -m "Bump version to 1.0.1"
+  git tag -a v1.0.1 -m "Release v1.0.1"
+
+Pas 3 (REMOTE) — Push tag → workflow GitHub Actions face automat:
+  git push origin main
+  git push origin v1.0.1
+  gh run watch                            # urmărește build-ul
+  # Workflow-ul:
+  #   - build PyInstaller
+  #   - publică GitHub Release v1.0.1 cu ZIP
+  #   - calculează SHA-256 al ZIP-ului
+  #   - actualizează update-manifest.json pe main (commit [skip ci])
+
+Pas 4 (LOCAL)  — Verifică update-ul din app:
+  cd C:\TestApp\Neloaica
+  .\Neloaica.exe
+  # Settings → "🔄 Verifică actualizări"
+  # → "Versiunea 1.0.1 este disponibilă..."
+  # → Da pe download → progress bar → Da pe instalează → app se închide
+  # → după 2-3 sec, app repornește în versiunea 1.0.1
+
+Pas 5 (POST)   — Inspectează log-urile pentru diagnostic:
+  type %LOCALAPPDATA%\Neloaica\logs\neloaica.log
+  type %LOCALAPPDATA%\Neloaica\updates\apply_update.log
+  ls %LOCALAPPDATA%\Neloaica\updates\         # archive descărcate
+  ls C:\TestApp\                              # Neloaica + Neloaica.old.<ts>
+```
+
+### Troubleshooting auto-update
+
+| Simptom | Cauză | Fix |
+|---|---|---|
+| "Manifest is not valid JSON" | URL-ul pointează la o pagină HTML (404) | Verifică variabila `NELOAICA_UPDATE_MANIFEST_URL` |
+| "Nu am putut verifica..." | Conexiune Internet / firewall | Vezi log `neloaica.log` pentru exception completă |
+| "SHA-256 mismatch" | Manifest are hash vechi, ZIP-ul de pe Release e altul | Re-rulează workflow-ul de release (`Compute artefact SHA-256`) |
+| App nu repornește după apply | Helper-ul PowerShell a eșuat | Citește `%LOCALAPPDATA%\Neloaica\updates\apply_update.log` |
+| "Staged archive does not contain Neloaica.exe" | ZIP-ul de pe Release nu are layout-ul corect | Verifică pasul "Zip bundle" din `release.yml` |
+
+### Curățare după teste
+
+```powershell
+# Șterge instalarea de test
+Remove-Item -Recurse C:\TestApp\Neloaica
+Remove-Item -Recurse C:\TestApp\Neloaica.old.*
+
+# Șterge artefactele de update (cache descărcat + staging)
+Remove-Item -Recurse $env:LOCALAPPDATA\Neloaica\updates\
+
+# Șterge release-ul de test (dacă a fost real pe GitHub)
+gh release delete v1.0.1 --yes --cleanup-tag
+```
+
+---
+
 ## Formatare și linting
 
 ```powershell

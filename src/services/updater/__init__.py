@@ -30,13 +30,16 @@ from .apply import (
     UpdateApplier,
 )
 from .check import (
+    BUILTIN_MANIFEST_URL,
     DEFAULT_MANIFEST_URL,
 )
 from .check import DEFAULT_TIMEOUT as DEFAULT_CHECK_TIMEOUT
 from .check import (
     DEFAULT_USER_AGENT,
+    MANIFEST_URL_ENV_VAR,
     ManifestFetcher,
     UpdateChecker,
+    default_manifest_url,
 )
 from .download import (
     DEFAULT_CHUNK_SIZE,
@@ -48,6 +51,7 @@ from .download import (
     ProgressCallback,
     UpdateDownloader,
 )
+from .orchestrator import UpdateOrchestrator
 from .schema import (
     UpdateApplyError,
     UpdateChannel,
@@ -60,6 +64,7 @@ from .version import Version
 
 __all__ = [
     "ApplyPlan",
+    "BUILTIN_MANIFEST_URL",
     "DEFAULT_CHECK_TIMEOUT",
     "DEFAULT_CHUNK_SIZE",
     "DEFAULT_DOWNLOAD_TIMEOUT",
@@ -69,6 +74,7 @@ __all__ = [
     "DownloadResult",
     "HELPER_SCRIPT_NAME",
     "HttpOpener",
+    "MANIFEST_URL_ENV_VAR",
     "ManifestFetcher",
     "ProgressCallback",
     "UpdateApplier",
@@ -80,5 +86,7 @@ __all__ = [
     "UpdateDownloader",
     "UpdateError",
     "UpdateInfo",
+    "UpdateOrchestrator",
     "Version",
+    "default_manifest_url",
 ]

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any, Callable, Mapping, Optional
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -31,13 +32,42 @@ from .version import Version
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MANIFEST_URL = (
+#: URL the in-app updater consults when no override is configured.
+#: Lives on ``main`` so a release pipeline run (PR #7) only has to
+#: ``git push`` the refreshed manifest to publish a new version.
+BUILTIN_MANIFEST_URL = (
     "https://raw.githubusercontent.com/eduard2276/neloaica/main/update-manifest.json"
 )
+
+#: Environment variable that overrides :data:`BUILTIN_MANIFEST_URL`.
+#: Set this when running an unreleased build against a manifest hosted
+#: on a feature branch / local file:// path / staging server. Read on
+#: every call to :func:`default_manifest_url` so a change at runtime is
+#: honoured by the next ``UpdateChecker`` instance.
+MANIFEST_URL_ENV_VAR = "NELOAICA_UPDATE_MANIFEST_URL"
+
 DEFAULT_TIMEOUT = 10.0  # seconds
 DEFAULT_USER_AGENT = "Neloaica-Updater"
 
+# Backwards-compatible alias for code that imported the original
+# constant. New code should call :func:`default_manifest_url` so the
+# env override is picked up automatically.
+DEFAULT_MANIFEST_URL = BUILTIN_MANIFEST_URL
+
 ManifestFetcher = Callable[[str, float], bytes]
+
+
+def default_manifest_url() -> str:
+    """Resolve the manifest URL, honoring :data:`MANIFEST_URL_ENV_VAR`.
+
+    Called by :class:`UpdateChecker` whenever the caller did not pass
+    an explicit ``manifest_url``. Always reads the environment so
+    tooling (and tests) can flip the value at runtime.
+    """
+    override = os.environ.get(MANIFEST_URL_ENV_VAR)
+    if override is not None and override.strip():
+        return override.strip()
+    return BUILTIN_MANIFEST_URL
 
 
 def _urllib_fetcher(url: str, timeout: float) -> bytes:
@@ -64,13 +94,13 @@ class UpdateChecker:
         self,
         current_version: Version,
         *,
-        manifest_url: str = DEFAULT_MANIFEST_URL,
+        manifest_url: Optional[str] = None,
         channel: UpdateChannel = UpdateChannel.STABLE,
         timeout: float = DEFAULT_TIMEOUT,
         fetcher: Optional[ManifestFetcher] = None,
     ) -> None:
         self._current = current_version
-        self._manifest_url = manifest_url
+        self._manifest_url = manifest_url or default_manifest_url()
         self._channel = channel
         self._timeout = timeout
         self._fetcher = fetcher or _urllib_fetcher
@@ -167,9 +197,12 @@ class UpdateChecker:
 
 
 __all__ = [
+    "BUILTIN_MANIFEST_URL",
     "DEFAULT_MANIFEST_URL",
     "DEFAULT_TIMEOUT",
     "DEFAULT_USER_AGENT",
+    "MANIFEST_URL_ENV_VAR",
     "ManifestFetcher",
     "UpdateChecker",
+    "default_manifest_url",
 ]
