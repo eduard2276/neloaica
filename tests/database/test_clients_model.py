@@ -16,21 +16,21 @@ Covers:
 import pytest
 
 from src.database.models.clients import (
-    create_clients_table,
     add_client,
+    create_clients_table,
+    delete_client,
     get_all_clients,
     get_client_by_id,
-    update_client,
-    delete_client,
     get_clients_count,
     get_clients_for_dropdown,
     populate_clients_mock_data,
+    update_client,
 )
-
 
 # ---------------------------------------------------------------------------
 # Autouse: every test gets a fresh `clients` table
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def clients_table(db):
@@ -40,6 +40,7 @@ def clients_table(db):
 # ===========================================================================
 # TestCreateTable
 # ===========================================================================
+
 
 class TestCreateTable:
     def test_create_table_is_idempotent(self):
@@ -52,6 +53,7 @@ class TestCreateTable:
 # ===========================================================================
 # TestAdd
 # ===========================================================================
+
 
 class TestAdd:
     def test_add_returns_positive_id(self):
@@ -85,6 +87,7 @@ class TestAdd:
 # TestGetById
 # ===========================================================================
 
+
 class TestGetById:
     def test_get_existing(self):
         cid = add_client("First", "Last", "Addr")
@@ -99,6 +102,7 @@ class TestGetById:
 # ===========================================================================
 # TestGetAll
 # ===========================================================================
+
 
 class TestGetAll:
     def test_empty(self):
@@ -115,6 +119,7 @@ class TestGetAll:
 # ===========================================================================
 # TestUpdate
 # ===========================================================================
+
 
 class TestUpdate:
     def test_update_all_fields(self):
@@ -139,6 +144,7 @@ class TestUpdate:
 # TestDelete
 # ===========================================================================
 
+
 class TestDelete:
     def test_delete_existing(self):
         cid = add_client("A", "B", "")
@@ -160,6 +166,7 @@ class TestDelete:
 # TestDropdownQuery
 # ===========================================================================
 
+
 class TestDropdownQuery:
     def test_empty_dropdown(self):
         assert get_clients_for_dropdown() == []
@@ -180,6 +187,7 @@ class TestDropdownQuery:
 # ===========================================================================
 # TestEdgeCases
 # ===========================================================================
+
 
 class TestEdgeCases:
     def test_empty_address_default(self):
@@ -208,6 +216,7 @@ class TestEdgeCases:
 # ===========================================================================
 # TestMockData
 # ===========================================================================
+
 
 class TestMockData:
     def test_first_call_seeds_rows(self):

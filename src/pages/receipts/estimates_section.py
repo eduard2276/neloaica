@@ -1,17 +1,17 @@
 """Estimates section - Estimated cost and final date for the receipt."""
 
+from PySide6.QtCore import QDate, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QTextCharFormat
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QFormLayout,
-    QLineEdit,
-    QGroupBox,
-    QPushButton,
     QCalendarWidget,
     QDialog,
+    QFormLayout,
+    QGroupBox,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Signal, QDate, QTimer
-from PySide6.QtGui import QTextCharFormat, QColor
 
 from src.styles import theme
 
@@ -149,12 +149,12 @@ class EstimatesSectionWidget(QWidget):
         """Populate with existing estimates data."""
         if estimate_cost > 0:
             int_part = int(estimate_cost)
-            dec_part = f"{estimate_cost:.2f}".split('.')[1]
-            formatted = ''
+            dec_part = f"{estimate_cost:.2f}".split(".")[1]
+            formatted = ""
             int_str = str(int_part)
             for i, d in enumerate(reversed(int_str)):
                 if i > 0 and i % 3 == 0:
-                    formatted = ' ' + formatted
+                    formatted = " " + formatted
                 formatted = d + formatted
             self.estimate_cost_input.setText(f"{formatted}.{dec_part}")
 

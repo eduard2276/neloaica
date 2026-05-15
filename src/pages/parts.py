@@ -1,27 +1,27 @@
 """Parts page."""
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QTableWidget,
-    QTableWidgetItem,
-    QHeaderView,
-    QPushButton,
-    QLineEdit,
-    QLabel,
     QDialog,
     QFormLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
     QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt
 
 from src.database.models import (
-    get_all_parts,
     add_part,
-    update_part,
     delete_part,
+    get_all_parts,
     get_part_by_name,
+    update_part,
 )
 from src.styles import theme
 from src.utils import show_warning
@@ -34,7 +34,7 @@ class PartDialog(QDialog):
         super().__init__(parent)
         self.part_data = part_data
         self.setup_ui()
-        
+
         if part_data:
             self.setWindowTitle("Edit Part")
             self.populate_data()
@@ -45,45 +45,45 @@ class PartDialog(QDialog):
         """Set up the dialog UI."""
         self.setModal(True)
         self.setMinimumWidth(400)
-        
+
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         layout.setContentsMargins(20, 20, 20, 20)
-        
+
         # Form layout
         form_layout = QFormLayout()
         form_layout.setSpacing(15)
         form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        
+
         # Part Name field
         self.part_name_edit = QLineEdit()
         self.part_name_edit.setPlaceholderText("Enter part name")
         self.part_name_edit.setMinimumHeight(35)
         form_layout.addRow("Part Name:", self.part_name_edit)
-        
+
         layout.addLayout(form_layout)
-        
+
         # Buttons
         button_layout = QHBoxLayout()
         button_layout.setSpacing(10)
-        
+
         self.save_button = QPushButton("Save")
         self.save_button.setMinimumHeight(40)
         self.save_button.clicked.connect(self.accept)
-        
+
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.setMinimumHeight(40)
         self.cancel_button.clicked.connect(self.reject)
-        
+
         button_layout.addStretch()
         button_layout.addWidget(self.cancel_button)
         button_layout.addWidget(self.save_button)
-        
+
         layout.addLayout(button_layout)
-        
+
         # Styling
         self.setStyleSheet(theme.dialog() + theme.line_edit_dialog())
-        
+
         self.save_button.setStyleSheet(theme.button("success"))
         self.cancel_button.setStyleSheet(theme.button("cancel"))
 
@@ -107,12 +107,12 @@ class PartDialog(QDialog):
     def accept(self):
         """Validate and accept the dialog."""
         data = self.get_data()
-        
+
         if not data["part_name"]:
             show_warning(self, "Validation Error", "Part name is required.")
             self.part_name_edit.setFocus()
             return
-        
+
         super().accept()
 
 
@@ -136,35 +136,35 @@ class PartsPage(QWidget):
 
         # Header
         header_layout = QHBoxLayout()
-        
+
         title = QLabel("🔧 Parts")
         title.setStyleSheet(theme.page_title())
         header_layout.addWidget(title)
-        
+
         layout.addLayout(header_layout)
 
         # Toolbar: Search and Action buttons
         toolbar_layout = QHBoxLayout()
-        
+
         # Search bar
         search_label = QLabel("🔍")
         search_label.setStyleSheet("font-size: 18px;")
         toolbar_layout.addWidget(search_label)
-        
+
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("Search parts...")
         self.search_edit.textChanged.connect(self.filter_parts)
         self.search_edit.setStyleSheet(theme.search_input())
         toolbar_layout.addWidget(self.search_edit)
-        
+
         toolbar_layout.addSpacing(20)
-        
+
         # Action buttons
         add_btn = QPushButton("➕ Add Part")
         add_btn.setStyleSheet(theme.button("success"))
         add_btn.clicked.connect(self.add_part)
         toolbar_layout.addWidget(add_btn)
-        
+
         layout.addLayout(toolbar_layout)
 
         # Parts table
@@ -179,7 +179,7 @@ class PartsPage(QWidget):
         self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels(["ID", "Part Name", "Actions"])
         self.table.doubleClicked.connect(self.edit_part)
-        
+
         layout.addWidget(self.table)
 
     def load_data(self):
@@ -190,34 +190,34 @@ class PartsPage(QWidget):
     def display_parts(self, parts_list: list[dict]):
         """Display parts in the table."""
         self.table.setRowCount(len(parts_list))
-        
+
         for row, part in enumerate(parts_list):
             id_item = QTableWidgetItem(str(part["id"]))
             id_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             id_item.setData(Qt.ItemDataRole.UserRole, part["id"])
             self.table.setItem(row, 0, id_item)
-            
+
             self.table.setItem(row, 1, QTableWidgetItem(part["part_name"]))
-            
+
             # Actions column with Edit and Delete buttons
             actions_widget = QWidget()
             actions_widget.setStyleSheet("background-color: transparent;")
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(5, 0, 2, 0)
             actions_layout.setSpacing(5)
-            
+
             edit_btn = QPushButton("✏️")
             edit_btn.setStyleSheet(theme.button_icon("edit"))
             edit_btn.clicked.connect(lambda checked, p=part: self.edit_part_by_id(p["id"]))
             actions_layout.addWidget(edit_btn)
-            
+
             delete_btn = QPushButton("🗑️")
             delete_btn.setStyleSheet(theme.button_icon("delete"))
             delete_btn.clicked.connect(lambda checked, p=part: self.delete_part_by_id(p["id"]))
             actions_layout.addWidget(delete_btn)
-            
+
             self.table.setCellWidget(row, 2, actions_widget)
-        
+
         # Set column widths
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -230,12 +230,12 @@ class PartsPage(QWidget):
         if not text:
             self.display_parts(self.all_parts)
             return
-        
+
         text = text.lower()
         filtered = [
-            part for part in self.all_parts
-            if text in str(part["id"]).lower()
-            or text in part["part_name"].lower()
+            part
+            for part in self.all_parts
+            if text in str(part["id"]).lower() or text in part["part_name"].lower()
         ]
         self.display_parts(filtered)
 
@@ -244,7 +244,7 @@ class PartsPage(QWidget):
         selected_rows = self.table.selectedItems()
         if not selected_rows:
             return None
-        
+
         row = selected_rows[0].row()
         id_item = self.table.item(row, 0)
         return id_item.data(Qt.ItemDataRole.UserRole)
@@ -257,8 +257,9 @@ class PartsPage(QWidget):
             existing = get_part_by_name(data["part_name"])
             if existing:
                 show_warning(
-                    self, "Duplicate Entry",
-                    f"A part named '{existing['part_name']}' already exists."
+                    self,
+                    "Duplicate Entry",
+                    f"A part named '{existing['part_name']}' already exists.",
                 )
                 return
             add_part(data["part_name"])
@@ -270,12 +271,12 @@ class PartsPage(QWidget):
         if not part_id:
             show_warning(self, "No Selection", "Please select a part to edit.")
             return
-        
+
         # Find the part data
         part_data = next((p for p in self.all_parts if p["id"] == part_id), None)
         if not part_data:
             return
-        
+
         dialog = PartDialog(self, part_data)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
@@ -288,65 +289,66 @@ class PartsPage(QWidget):
         if not part_id:
             show_warning(self, "No Selection", "Please select a part to delete.")
             return
-        
+
         # Find the part data for the confirmation message
         part_data = next((p for p in self.all_parts if p["id"] == part_id), None)
         if not part_data:
             return
-        
+
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Confirm Delete")
         msg_box.setText(f"Are you sure you want to delete the part '{part_data['part_name']}'?")
         msg_box.setIcon(QMessageBox.Icon.Question)
         msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg_box.setDefaultButton(QMessageBox.StandardButton.No)
-        
+
         msg_box.setStyleSheet(theme.message_box_confirm())
-        
+
         reply = msg_box.exec()
-        
+
         if reply == QMessageBox.StandardButton.Yes:
             delete_part(part_id)
             self.load_data()
-    
+
     def edit_part_by_id(self, part_id: int):
         """Edit a part by ID (used by row action buttons)."""
         # Find the part data
         part_data = next((p for p in self.all_parts if p["id"] == part_id), None)
         if not part_data:
             return
-        
+
         dialog = PartDialog(self, part_data)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
             existing = get_part_by_name(data["part_name"])
             if existing and existing["id"] != part_id:
                 show_warning(
-                    self, "Duplicate Entry",
-                    f"A part named '{existing['part_name']}' already exists."
+                    self,
+                    "Duplicate Entry",
+                    f"A part named '{existing['part_name']}' already exists.",
                 )
                 return
             update_part(part_id, data["part_name"])
             self.load_data()
-    
+
     def delete_part_by_id(self, part_id: int):
         """Delete a part by ID (used by row action buttons)."""
         # Find the part data for the confirmation message
         part_data = next((p for p in self.all_parts if p["id"] == part_id), None)
         if not part_data:
             return
-        
+
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Confirm Delete")
         msg_box.setText(f"Are you sure you want to delete the part '{part_data['part_name']}'?")
         msg_box.setIcon(QMessageBox.Icon.Question)
         msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg_box.setDefaultButton(QMessageBox.StandardButton.No)
-        
+
         msg_box.setStyleSheet(theme.message_box_confirm())
-        
+
         reply = msg_box.exec()
-        
+
         if reply == QMessageBox.StandardButton.Yes:
             delete_part(part_id)
             self.load_data()

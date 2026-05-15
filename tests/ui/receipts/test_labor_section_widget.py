@@ -14,7 +14,6 @@ from unittest.mock import patch
 
 import pytest
 
-
 _LABOR = [
     {"id": 1, "service_name": "Oil change"},
     {"id": 2, "service_name": "Brake replacement"},
@@ -26,12 +25,14 @@ _LABOR = [
 def widget(qapp):
     with patch("src.pages.receipts.labor_section.get_all_labor", return_value=list(_LABOR)):
         from src.pages.receipts.labor_section import LaborSectionWidget
+
         return LaborSectionWidget()
 
 
 # ===========================================================================
 # TestInitialState
 # ===========================================================================
+
 
 class TestInitialState:
     def test_empty(self, widget):
@@ -45,6 +46,7 @@ class TestInitialState:
 # ===========================================================================
 # TestAddRemove
 # ===========================================================================
+
 
 class TestAddRemove:
     def test_select_combo_adds(self, widget):
@@ -64,6 +66,7 @@ class TestAddRemove:
 # ===========================================================================
 # TestCostFormatting
 # ===========================================================================
+
 
 class TestCostFormatting:
     def test_thousand_separator(self, widget):
@@ -91,6 +94,7 @@ class TestCostFormatting:
 # TestSignal
 # ===========================================================================
 
+
 class TestSignal:
     def test_signal_payload(self, widget):
         captured = []
@@ -105,6 +109,7 @@ class TestSignal:
 # ===========================================================================
 # TestSetData
 # ===========================================================================
+
 
 class TestSetData:
     def test_round_trip(self, widget):

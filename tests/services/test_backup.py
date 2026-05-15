@@ -22,10 +22,10 @@ import pytest
 
 from src.services import backup as backup_mod
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_dummy_db(path: Path, contents: bytes = b"SQLite format 3\x00") -> Path:
     """Write a stub binary file that looks like a SQLite DB on disk."""
@@ -49,6 +49,7 @@ def tmp_dirs(tmp_path, monkeypatch):
 # TestEnsureBackupsDir
 # ===========================================================================
 
+
 class TestEnsureBackupsDir:
     def test_creates_directory(self, tmp_dirs):
         assert not tmp_dirs["backups_dir"].exists()
@@ -64,6 +65,7 @@ class TestEnsureBackupsDir:
 # ===========================================================================
 # TestCreateBackup
 # ===========================================================================
+
 
 class TestCreateBackup:
     def test_happy_path_returns_path_and_true(self, tmp_dirs):
@@ -95,6 +97,7 @@ class TestCreateBackup:
 # TestCleanupOldBackups
 # ===========================================================================
 
+
 class TestCleanupOldBackups:
     def test_keeps_only_max(self, tmp_dirs):
         backup_mod.ensure_backups_dir()
@@ -105,6 +108,7 @@ class TestCleanupOldBackups:
             f.write_bytes(b"x")
             ts = now - i * 3600
             import os
+
             os.utime(f, (ts, ts))
 
         backup_mod.cleanup_old_backups()
@@ -125,6 +129,7 @@ class TestCleanupOldBackups:
 # TestGetAllBackups
 # ===========================================================================
 
+
 class TestGetAllBackups:
     def test_empty(self, tmp_dirs):
         assert backup_mod.get_all_backups() == []
@@ -142,10 +147,12 @@ class TestGetAllBackups:
 
     def test_sorted_newest_first(self, tmp_dirs):
         import os
+
         backup_mod.ensure_backups_dir()
         a = tmp_dirs["backups_dir"] / "neloaica_backup_manual_a.db"
         b = tmp_dirs["backups_dir"] / "neloaica_backup_manual_b.db"
-        a.write_bytes(b"x"); b.write_bytes(b"x")
+        a.write_bytes(b"x")
+        b.write_bytes(b"x")
         now = datetime.now().timestamp()
         os.utime(a, (now - 3600, now - 3600))
         os.utime(b, (now, now))
@@ -156,6 +163,7 @@ class TestGetAllBackups:
 # ===========================================================================
 # TestShouldCreateDailyBackup
 # ===========================================================================
+
 
 class TestShouldCreateDailyBackup:
     def test_true_when_no_dir(self, tmp_dirs):
@@ -177,6 +185,7 @@ class TestShouldCreateDailyBackup:
 # ===========================================================================
 # TestRestoreBackup
 # ===========================================================================
+
 
 class TestRestoreBackup:
     def test_failure_when_file_missing(self, tmp_dirs):
@@ -210,6 +219,7 @@ class TestRestoreBackup:
 # ===========================================================================
 # TestRoundTrip
 # ===========================================================================
+
 
 class TestRoundTrip:
     def test_create_then_get_all_returns_one(self, tmp_dirs):

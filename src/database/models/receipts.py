@@ -51,15 +51,13 @@ def create_receipts_table():
 def get_all_receipts() -> list[dict]:
     """Get all receipts, ordered by most recent first."""
     db = DatabaseConnection()
-    rows = db.fetchall(
-        "SELECT * FROM receipts ORDER BY updated_at DESC, id DESC"
-    )
+    rows = db.fetchall("SELECT * FROM receipts ORDER BY updated_at DESC, id DESC")
     for row in rows:
-        row['defects'] = json.loads(row.get('defects', '[]'))
-        row['discovered_defects'] = json.loads(row.get('discovered_defects', '[]'))
-        row['parts'] = json.loads(row.get('parts', '[]'))
-        row['labor'] = json.loads(row.get('labor', '[]'))
-        row['billable_parts'] = json.loads(row.get('billable_parts', '[]'))
+        row["defects"] = json.loads(row.get("defects", "[]"))
+        row["discovered_defects"] = json.loads(row.get("discovered_defects", "[]"))
+        row["parts"] = json.loads(row.get("parts", "[]"))
+        row["labor"] = json.loads(row.get("labor", "[]"))
+        row["billable_parts"] = json.loads(row.get("billable_parts", "[]"))
     return rows
 
 
@@ -68,11 +66,11 @@ def get_receipt_by_id(receipt_id: int) -> dict | None:
     db = DatabaseConnection()
     row = db.fetchone("SELECT * FROM receipts WHERE id = ?", (receipt_id,))
     if row:
-        row['defects'] = json.loads(row.get('defects', '[]'))
-        row['discovered_defects'] = json.loads(row.get('discovered_defects', '[]'))
-        row['parts'] = json.loads(row.get('parts', '[]'))
-        row['labor'] = json.loads(row.get('labor', '[]'))
-        row['billable_parts'] = json.loads(row.get('billable_parts', '[]'))
+        row["defects"] = json.loads(row.get("defects", "[]"))
+        row["discovered_defects"] = json.loads(row.get("discovered_defects", "[]"))
+        row["parts"] = json.loads(row.get("parts", "[]"))
+        row["labor"] = json.loads(row.get("labor", "[]"))
+        row["billable_parts"] = json.loads(row.get("billable_parts", "[]"))
     return row
 
 
@@ -90,26 +88,26 @@ def add_receipt(data: dict) -> int:
             grand_total, status
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
-            data.get('client_id'),
-            data.get('car_id'),
-            data.get('client_name', ''),
-            data.get('model', ''),
-            data.get('plate_number', ''),
-            data.get('vin', ''),
-            data.get('kilometers', ''),
-            data.get('executant_name', ''),
-            data.get('date', ''),
-            data.get('estimate_cost', 0.0),
-            data.get('estimated_final_date', ''),
-            json.dumps(data.get('defects', [])),
-            json.dumps(data.get('discovered_defects', [])),
-            json.dumps(data.get('parts', [])),
-            json.dumps(data.get('labor', [])),
-            data.get('total_labor_cost', 0.0),
-            json.dumps(data.get('billable_parts', [])),
-            data.get('total_parts_cost', 0.0),
-            data.get('grand_total', 0.0),
-            data.get('status', 'Ongoing'),
+            data.get("client_id"),
+            data.get("car_id"),
+            data.get("client_name", ""),
+            data.get("model", ""),
+            data.get("plate_number", ""),
+            data.get("vin", ""),
+            data.get("kilometers", ""),
+            data.get("executant_name", ""),
+            data.get("date", ""),
+            data.get("estimate_cost", 0.0),
+            data.get("estimated_final_date", ""),
+            json.dumps(data.get("defects", [])),
+            json.dumps(data.get("discovered_defects", [])),
+            json.dumps(data.get("parts", [])),
+            json.dumps(data.get("labor", [])),
+            data.get("total_labor_cost", 0.0),
+            json.dumps(data.get("billable_parts", [])),
+            data.get("total_parts_cost", 0.0),
+            data.get("grand_total", 0.0),
+            data.get("status", "Ongoing"),
         ),
     )
     db.commit()
@@ -131,26 +129,26 @@ def update_receipt(receipt_id: int, data: dict):
             grand_total = ?, status = ?, updated_at = ?
         WHERE id = ?""",
         (
-            data.get('client_id'),
-            data.get('car_id'),
-            data.get('client_name', ''),
-            data.get('model', ''),
-            data.get('plate_number', ''),
-            data.get('vin', ''),
-            data.get('kilometers', ''),
-            data.get('executant_name', ''),
-            data.get('date', ''),
-            data.get('estimate_cost', 0.0),
-            data.get('estimated_final_date', ''),
-            json.dumps(data.get('defects', [])),
-            json.dumps(data.get('discovered_defects', [])),
-            json.dumps(data.get('parts', [])),
-            json.dumps(data.get('labor', [])),
-            data.get('total_labor_cost', 0.0),
-            json.dumps(data.get('billable_parts', [])),
-            data.get('total_parts_cost', 0.0),
-            data.get('grand_total', 0.0),
-            data.get('status', 'Ongoing'),
+            data.get("client_id"),
+            data.get("car_id"),
+            data.get("client_name", ""),
+            data.get("model", ""),
+            data.get("plate_number", ""),
+            data.get("vin", ""),
+            data.get("kilometers", ""),
+            data.get("executant_name", ""),
+            data.get("date", ""),
+            data.get("estimate_cost", 0.0),
+            data.get("estimated_final_date", ""),
+            json.dumps(data.get("defects", [])),
+            json.dumps(data.get("discovered_defects", [])),
+            json.dumps(data.get("parts", [])),
+            json.dumps(data.get("labor", [])),
+            data.get("total_labor_cost", 0.0),
+            json.dumps(data.get("billable_parts", [])),
+            data.get("total_parts_cost", 0.0),
+            data.get("grand_total", 0.0),
+            data.get("status", "Ongoing"),
             now,
             receipt_id,
         ),

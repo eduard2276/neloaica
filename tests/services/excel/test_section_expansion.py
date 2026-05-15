@@ -32,7 +32,6 @@ Sections below the rectangle shift by extra_rows:
   • Labor base row shifts from 36 → 36 + extra_rows
 """
 
-import pytest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -74,6 +73,7 @@ MOCK_LABOR = {
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _section_end(n_defects: int, n_parts: int) -> int:
     """Row number of 'Semnatura client:' (last row of the expandable section)."""
@@ -140,49 +140,45 @@ def _base_receipt(**overrides) -> dict:
 # Section header anchor
 # ===========================================================================
 
+
 class TestSectionHeaderAnchor:
 
     def test_a13_is_section_header_with_no_data(self, tmp_path):
         """A13 must always be 'Defecte reclamate de client:' (baseline)."""
         ws, _ = _run(_base_receipt(), tmp_path)
-        assert ws["A13"].value == "Defecte reclamate de client:", (
-            f"A13: {ws['A13'].value!r}"
-        )
+        assert ws["A13"].value == "Defecte reclamate de client:", f"A13: {ws['A13'].value!r}"
 
     def test_a13_is_section_header_with_many_defects(self, tmp_path):
         """A13 stays put even when rows are inserted below it."""
         ws, _ = _run(_base_receipt(defects=list(range(1, 9))), tmp_path)
-        assert ws["A13"].value == "Defecte reclamate de client:", (
-            f"A13 changed after row insertion: {ws['A13'].value!r}"
-        )
+        assert (
+            ws["A13"].value == "Defecte reclamate de client:"
+        ), f"A13 changed after row insertion: {ws['A13'].value!r}"
 
     def test_a13_is_section_header_with_many_parts(self, tmp_path):
         """A13 stays put when extra part rows are inserted."""
         ws, _ = _run(_base_receipt(parts=list(range(10, 15))), tmp_path)
-        assert ws["A13"].value == "Defecte reclamate de client:", (
-            f"A13 changed after row insertion: {ws['A13'].value!r}"
-        )
+        assert (
+            ws["A13"].value == "Defecte reclamate de client:"
+        ), f"A13 changed after row insertion: {ws['A13'].value!r}"
 
 
 # ===========================================================================
 # Signature position — baseline (no expansion)
 # ===========================================================================
 
+
 class TestSignaturePositionBaseline:
 
     def test_renunt_at_c17_with_no_data(self, tmp_path):
         """With no defects / parts, 'Renunt la garantia...' stays at C17."""
         ws, _ = _run(_base_receipt(), tmp_path)
-        assert ws["C17"].value == "Renunt la garantia acestor piese.", (
-            f"C17: {ws['C17'].value!r}"
-        )
+        assert ws["C17"].value == "Renunt la garantia acestor piese.", f"C17: {ws['C17'].value!r}"
 
     def test_semnatura_at_c18_with_no_data(self, tmp_path):
         """With no defects / parts, 'Semnatura client:' stays at C18."""
         ws, _ = _run(_base_receipt(), tmp_path)
-        assert ws["C18"].value == "Semnatura client:", (
-            f"C18: {ws['C18'].value!r}"
-        )
+        assert ws["C18"].value == "Semnatura client:", f"C18: {ws['C18'].value!r}"
 
     def test_signature_position_with_max_template_data(self, tmp_path):
         """5 defects + 3 parts (template max) → no expansion, C17/C18 unchanged."""
@@ -194,6 +190,7 @@ class TestSignaturePositionBaseline:
 # ===========================================================================
 # Bold separator border above 'Renunt la garantia' row
 # ===========================================================================
+
 
 class TestSeparatorBorderPosition:
     """The medium bottom border on C–F must always be just above 'Renunt la garantia'."""
@@ -209,59 +206,60 @@ class TestSeparatorBorderPosition:
     def test_border_at_row_16_no_data(self, tmp_path):
         """Baseline: medium bottom border on C16–F16."""
         ws, _ = _run(_base_receipt(), tmp_path)
-        r = self._border_row(0, 0)   # 16
+        r = self._border_row(0, 0)  # 16
         for col in ["C", "D", "E", "F"]:
-            assert self._has_medium_bottom(ws[f"{col}{r}"]), (
-                f"{col}{r} should have medium bottom border (no expansion)"
-            )
+            assert self._has_medium_bottom(
+                ws[f"{col}{r}"]
+            ), f"{col}{r} should have medium bottom border (no expansion)"
 
     def test_border_absent_from_row_16_after_expansion(self, tmp_path):
         """After expansion the medium bottom border must leave row 16."""
         ws, _ = _run(_base_receipt(defects=list(range(1, 9))), tmp_path)
         for col in ["C", "D", "E", "F"]:
             b = ws[f"{col}16"].border
-            assert not (b.bottom and b.bottom.style == "medium"), (
-                f"{col}16 still has medium bottom border after expansion"
-            )
+            assert not (
+                b.bottom and b.bottom.style == "medium"
+            ), f"{col}16 still has medium bottom border after expansion"
 
     def test_border_moves_with_8_defects(self, tmp_path):
         """8 defects (extra_rows=3) → border at row 19 (above 'Renunt' at 20)."""
         ws, _ = _run(_base_receipt(defects=list(range(1, 9))), tmp_path)
-        r = self._border_row(8, 0)   # 19
+        r = self._border_row(8, 0)  # 19
         for col in ["C", "D", "E", "F"]:
-            assert self._has_medium_bottom(ws[f"{col}{r}"]), (
-                f"{col}{r} should have medium bottom border with 8 defects"
-            )
+            assert self._has_medium_bottom(
+                ws[f"{col}{r}"]
+            ), f"{col}{r} should have medium bottom border with 8 defects"
 
     def test_border_moves_with_5_parts(self, tmp_path):
         """5 parts (extra_rows=2) → border at row 18 (above 'Renunt' at 19)."""
         ws, _ = _run(_base_receipt(parts=list(range(10, 15))), tmp_path)
-        r = self._border_row(0, 5)   # 18
+        r = self._border_row(0, 5)  # 18
         for col in ["C", "D", "E", "F"]:
-            assert self._has_medium_bottom(ws[f"{col}{r}"]), (
-                f"{col}{r} should have medium bottom border with 5 parts"
-            )
+            assert self._has_medium_bottom(
+                ws[f"{col}{r}"]
+            ), f"{col}{r} should have medium bottom border with 5 parts"
 
     def test_border_moves_with_8_defects_and_5_parts(self, tmp_path):
         """8 defects + 5 parts (extra_rows=3) → border at row 19."""
         ws, _ = _run(_base_receipt(defects=list(range(1, 9)), parts=list(range(10, 15))), tmp_path)
-        r = self._border_row(8, 5)   # 19
+        r = self._border_row(8, 5)  # 19
         for col in ["C", "D", "E", "F"]:
-            assert self._has_medium_bottom(ws[f"{col}{r}"]), (
-                f"{col}{r} should have medium bottom border with 8 def + 5 parts"
-            )
+            assert self._has_medium_bottom(
+                ws[f"{col}{r}"]
+            ), f"{col}{r} should have medium bottom border with 8 def + 5 parts"
 
 
 # ===========================================================================
 # Many defects  (N > 5)
 # ===========================================================================
 
+
 class TestManyDefects:
     """Tests with 8 defects  →  section_rows = 8, extra_rows = 3, section_end = 21."""
 
     N = 8
-    DEFECT_IDS = list(range(1, 9))   # [1..8]
-    SE = _section_end(N, 0)          # = 21
+    DEFECT_IDS = list(range(1, 9))  # [1..8]
+    SE = _section_end(N, 0)  # = 21
 
     def test_all_defects_written(self, tmp_path):
         """All 8 defects must appear in A14..A21 with no truncation."""
@@ -269,40 +267,40 @@ class TestManyDefects:
         for i, did in enumerate(self.DEFECT_IDS):
             expected = MOCK_DEFECTS[did]["defect_name"]
             actual = ws[f"A{14 + i}"].value
-            assert actual == expected, (
-                f"Defect {i + 1}: A{14 + i} expected {expected!r}, got {actual!r}"
-            )
+            assert (
+                actual == expected
+            ), f"Defect {i + 1}: A{14 + i} expected {expected!r}, got {actual!r}"
 
     def test_no_overflow_warning_when_rows_expanded(self, tmp_path):
         """No defect-overflow warning when the section expands to fit."""
         _, warnings = _run(_base_receipt(defects=self.DEFECT_IDS), tmp_path)
-        assert not any("defect" in w.lower() for w in warnings), (
-            f"Unexpected defect overflow warning: {warnings}"
-        )
+        assert not any(
+            "defect" in w.lower() for w in warnings
+        ), f"Unexpected defect overflow warning: {warnings}"
 
     def test_renunt_shifts_to_correct_row(self, tmp_path):
         """'Renunt la garantia...' must be at C(section_end - 1)."""
         ws, _ = _run(_base_receipt(defects=self.DEFECT_IDS), tmp_path)
-        row = self.SE - 1   # C20
-        assert ws[f"C{row}"].value == "Renunt la garantia acestor piese.", (
-            f"C{row}: {ws[f'C{row}'].value!r}  (section_end={self.SE})"
-        )
+        row = self.SE - 1  # C20
+        assert (
+            ws[f"C{row}"].value == "Renunt la garantia acestor piese."
+        ), f"C{row}: {ws[f'C{row}'].value!r}  (section_end={self.SE})"
 
     def test_semnatura_shifts_to_correct_row(self, tmp_path):
         """'Semnatura client:' must be at C(section_end)."""
         ws, _ = _run(_base_receipt(defects=self.DEFECT_IDS), tmp_path)
-        assert ws[f"C{self.SE}"].value == "Semnatura client:", (
-            f"C{self.SE}: {ws[f'C{self.SE}'].value!r}"
-        )
+        assert (
+            ws[f"C{self.SE}"].value == "Semnatura client:"
+        ), f"C{self.SE}: {ws[f'C{self.SE}'].value!r}"
 
     def test_manopera_shifts_down(self, tmp_path):
         """'MANOPERA' header moves from A32 to A(32 + extra_rows)."""
         ws, _ = _run(_base_receipt(defects=self.DEFECT_IDS), tmp_path)
-        er = _extra_rows(self.N, 0)            # 3
-        expected_row = 32 + er                 # 35
-        assert ws[f"A{expected_row}"].value == "MANOPERA", (
-            f"A{expected_row}: {ws[f'A{expected_row}'].value!r}  (extra_rows={er})"
-        )
+        er = _extra_rows(self.N, 0)  # 3
+        expected_row = 32 + er  # 35
+        assert (
+            ws[f"A{expected_row}"].value == "MANOPERA"
+        ), f"A{expected_row}: {ws[f'A{expected_row}'].value!r}  (extra_rows={er})"
 
     def test_discovered_defects_shift_down(self, tmp_path):
         """Discovered defects start at A(20 + extra_rows) after expansion."""
@@ -322,12 +320,13 @@ class TestManyDefects:
 # Many parts  (M > 3)
 # ===========================================================================
 
+
 class TestManyParts:
     """Tests with 5 parts  →  section_rows = 7, extra_rows = 2, section_end = 20."""
 
     M = 5
-    PART_IDS = list(range(10, 15))   # [10..14]
-    SE = _section_end(0, M)          # = 20
+    PART_IDS = list(range(10, 15))  # [10..14]
+    SE = _section_end(0, M)  # = 20
 
     def test_all_parts_written(self, tmp_path):
         """All 5 parts must appear in C14..C18 with no truncation."""
@@ -335,45 +334,46 @@ class TestManyParts:
         for i, pid in enumerate(self.PART_IDS):
             expected = MOCK_CLIENT_PARTS[pid]["part_name"]
             actual = ws[f"C{14 + i}"].value
-            assert actual == expected, (
-                f"Part {i + 1}: C{14 + i} expected {expected!r}, got {actual!r}"
-            )
+            assert (
+                actual == expected
+            ), f"Part {i + 1}: C{14 + i} expected {expected!r}, got {actual!r}"
 
     def test_no_overflow_warning_when_rows_expanded(self, tmp_path):
         """No parts-overflow warning when the section expands to fit."""
         _, warnings = _run(_base_receipt(parts=self.PART_IDS), tmp_path)
-        assert not any("parts received" in w.lower() for w in warnings), (
-            f"Unexpected parts overflow warning: {warnings}"
-        )
+        assert not any(
+            "parts received" in w.lower() for w in warnings
+        ), f"Unexpected parts overflow warning: {warnings}"
 
     def test_renunt_shifts_to_correct_row(self, tmp_path):
         """'Renunt la garantia...' must be at C(section_end - 1)."""
         ws, _ = _run(_base_receipt(parts=self.PART_IDS), tmp_path)
-        row = self.SE - 1   # C19
-        assert ws[f"C{row}"].value == "Renunt la garantia acestor piese.", (
-            f"C{row}: {ws[f'C{row}'].value!r}  (section_end={self.SE})"
-        )
+        row = self.SE - 1  # C19
+        assert (
+            ws[f"C{row}"].value == "Renunt la garantia acestor piese."
+        ), f"C{row}: {ws[f'C{row}'].value!r}  (section_end={self.SE})"
 
     def test_semnatura_shifts_to_correct_row(self, tmp_path):
         """'Semnatura client:' must be at C(section_end)."""
         ws, _ = _run(_base_receipt(parts=self.PART_IDS), tmp_path)
-        assert ws[f"C{self.SE}"].value == "Semnatura client:", (
-            f"C{self.SE}: {ws[f'C{self.SE}'].value!r}"
-        )
+        assert (
+            ws[f"C{self.SE}"].value == "Semnatura client:"
+        ), f"C{self.SE}: {ws[f'C{self.SE}'].value!r}"
 
     def test_manopera_shifts_down(self, tmp_path):
         """'MANOPERA' header moves from A32 to A(32 + extra_rows)."""
         ws, _ = _run(_base_receipt(parts=self.PART_IDS), tmp_path)
-        er = _extra_rows(0, self.M)            # 2
-        expected_row = 32 + er                 # 34
-        assert ws[f"A{expected_row}"].value == "MANOPERA", (
-            f"A{expected_row}: {ws[f'A{expected_row}'].value!r}  (extra_rows={er})"
-        )
+        er = _extra_rows(0, self.M)  # 2
+        expected_row = 32 + er  # 34
+        assert (
+            ws[f"A{expected_row}"].value == "MANOPERA"
+        ), f"A{expected_row}: {ws[f'A{expected_row}'].value!r}  (extra_rows={er})"
 
 
 # ===========================================================================
 # Many defects AND many parts  (N=8, M=5)
 # ===========================================================================
+
 
 class TestManyDefectsAndParts:
     """Tests with 8 defects + 5 parts  →  section_rows=8, extra_rows=3, section_end=21."""
@@ -381,8 +381,8 @@ class TestManyDefectsAndParts:
     N = 8
     M = 5
     DEFECT_IDS = list(range(1, 9))
-    PART_IDS   = list(range(10, 15))
-    SE = _section_end(N, M)   # = 21
+    PART_IDS = list(range(10, 15))
+    SE = _section_end(N, M)  # = 21
 
     def test_all_defects_written(self, tmp_path):
         """All 8 defects written to A14..A21."""
@@ -400,33 +400,32 @@ class TestManyDefectsAndParts:
         for i, pid in enumerate(self.PART_IDS):
             expected = MOCK_CLIENT_PARTS[pid]["part_name"]
             assert ws[f"C{14 + i}"].value == expected, (
-                f"Part {i + 1}: C{14 + i} expected {expected!r}, "
-                f"got {ws[f'C{14 + i}'].value!r}"
+                f"Part {i + 1}: C{14 + i} expected {expected!r}, " f"got {ws[f'C{14 + i}'].value!r}"
             )
 
     def test_renunt_at_correct_row(self, tmp_path):
         """'Renunt la garantia...' at C(section_end - 1) = C20."""
         ws, _ = _run(_base_receipt(defects=self.DEFECT_IDS, parts=self.PART_IDS), tmp_path)
         row = self.SE - 1
-        assert ws[f"C{row}"].value == "Renunt la garantia acestor piese.", (
-            f"C{row}: {ws[f'C{row}'].value!r}"
-        )
+        assert (
+            ws[f"C{row}"].value == "Renunt la garantia acestor piese."
+        ), f"C{row}: {ws[f'C{row}'].value!r}"
 
     def test_semnatura_at_correct_row(self, tmp_path):
         """'Semnatura client:' at C(section_end) = C21."""
         ws, _ = _run(_base_receipt(defects=self.DEFECT_IDS, parts=self.PART_IDS), tmp_path)
-        assert ws[f"C{self.SE}"].value == "Semnatura client:", (
-            f"C{self.SE}: {ws[f'C{self.SE}'].value!r}"
-        )
+        assert (
+            ws[f"C{self.SE}"].value == "Semnatura client:"
+        ), f"C{self.SE}: {ws[f'C{self.SE}'].value!r}"
 
     def test_manopera_shifts_down(self, tmp_path):
         """'MANOPERA' at A(32 + extra_rows) = A35."""
         ws, _ = _run(_base_receipt(defects=self.DEFECT_IDS, parts=self.PART_IDS), tmp_path)
         er = _extra_rows(self.N, self.M)  # 3
         expected_row = 32 + er
-        assert ws[f"A{expected_row}"].value == "MANOPERA", (
-            f"A{expected_row}: {ws[f'A{expected_row}'].value!r}"
-        )
+        assert (
+            ws[f"A{expected_row}"].value == "MANOPERA"
+        ), f"A{expected_row}: {ws[f'A{expected_row}'].value!r}"
 
     def test_no_overflow_warnings(self, tmp_path):
         """No overflow warnings when both sections are expanded."""
@@ -435,8 +434,8 @@ class TestManyDefectsAndParts:
 
     def test_labor_still_written_correctly(self, tmp_path):
         """Labor must still be written at the shifted row (36 + extra_rows)."""
-        er = _extra_rows(self.N, self.M)          # 3
-        labor_row = 36 + er                       # 39
+        er = _extra_rows(self.N, self.M)  # 3
+        labor_row = 36 + er  # 39
         part = {"part_id": None, "part_name": "Filtru ulei", "units": 1.0, "price_per_unit": 50.0}
         ws, _ = _run(
             _base_receipt(
@@ -449,14 +448,15 @@ class TestManyDefectsAndParts:
             ),
             tmp_path,
         )
-        assert ws[f"B{labor_row}"].value == "Schimb ulei", (
-            f"Labor at B{labor_row}: {ws[f'B{labor_row}'].value!r}  (extra_rows={er})"
-        )
+        assert (
+            ws[f"B{labor_row}"].value == "Schimb ulei"
+        ), f"Labor at B{labor_row}: {ws[f'B{labor_row}'].value!r}  (extra_rows={er})"
 
 
 # ===========================================================================
 # Full receipt with expansion: verify all downstream sections
 # ===========================================================================
+
 
 class TestFullReceiptWithExpansion:
     """
@@ -477,28 +477,28 @@ class TestFullReceiptWithExpansion:
       Executant              : B56  (50 + 1 extra-labor + 2 extra-parts + 3 row_offset)
     """
 
-    N_DEF  = 8
+    N_DEF = 8
     N_PART = 5
-    DEFECT_IDS      = list(range(1, 9))    # IDs 1-8
+    DEFECT_IDS = list(range(1, 9))  # IDs 1-8
     CLIENT_PART_IDS = list(range(10, 15))  # IDs 10-14
-    LABOR_IDS       = [100, 101]
-    BILLABLE_PARTS  = [
-        {"part_name": "Ulei motor",  "units": 1.0, "price_per_unit": 60.0},
+    LABOR_IDS = [100, 101]
+    BILLABLE_PARTS = [
+        {"part_name": "Ulei motor", "units": 1.0, "price_per_unit": 60.0},
         {"part_name": "Filtru ulei", "units": 1.0, "price_per_unit": 30.0},
-        {"part_name": "Bujii",       "units": 4.0, "price_per_unit": 15.0},
+        {"part_name": "Bujii", "units": 4.0, "price_per_unit": 15.0},
     ]
     TOTAL_LABOR = 500.0
     TOTAL_PARTS = 150.0
 
     # ── pre-computed row constants ─────────────────────────────────────────
     # ER = max(5, 8, 5+2) - 5 = 3
-    ER              = 3
-    LABOR_BASE      = 39   # 36 + 3
-    TOTAL_LABOR_ROW = 41   # 39 + 2 (len LABOR_IDS)
-    PARTS_START     = 46   # 42 + max(0, 2-1) + 3
-    TOTAL_PARTS_ROW = 49   # 46 + 3 (len BILLABLE_PARTS)
-    GRAND_TOTAL_ROW = 50   # 49 + 1
-    EXECUTANT_ROW   = 56   # 50 + 1 extra-labor + 2 extra-parts + 3 row_offset
+    ER = 3
+    LABOR_BASE = 39  # 36 + 3
+    TOTAL_LABOR_ROW = 41  # 39 + 2 (len LABOR_IDS)
+    PARTS_START = 46  # 42 + max(0, 2-1) + 3
+    TOTAL_PARTS_ROW = 49  # 46 + 3 (len BILLABLE_PARTS)
+    GRAND_TOTAL_ROW = 50  # 49 + 1
+    EXECUTANT_ROW = 56  # 50 + 1 extra-labor + 2 extra-parts + 3 row_offset
 
     def _receipt(self, **extra):
         data = _base_receipt(
@@ -519,17 +519,15 @@ class TestFullReceiptWithExpansion:
     def test_first_labor_written_to_correct_row(self, tmp_path):
         """First labor service at B(LABOR_BASE) = B39 after row_offset=3."""
         ws, _ = _run(self._receipt(), tmp_path)
-        assert ws[f"B{self.LABOR_BASE}"].value == "Schimb ulei", (
-            f"B{self.LABOR_BASE}: {ws[f'B{self.LABOR_BASE}'].value!r}"
-        )
+        assert (
+            ws[f"B{self.LABOR_BASE}"].value == "Schimb ulei"
+        ), f"B{self.LABOR_BASE}: {ws[f'B{self.LABOR_BASE}'].value!r}"
 
     def test_second_labor_written_to_correct_row(self, tmp_path):
         """Second labor service inserted at B(LABOR_BASE + 1) = B40."""
         ws, _ = _run(self._receipt(), tmp_path)
         row = self.LABOR_BASE + 1
-        assert ws[f"B{row}"].value == "Schimb filtre", (
-            f"B{row}: {ws[f'B{row}'].value!r}"
-        )
+        assert ws[f"B{row}"].value == "Schimb filtre", f"B{row}: {ws[f'B{row}'].value!r}"
 
     def test_total_labor_value_at_correct_row(self, tmp_path):
         """Total manopera value written to E(TOTAL_LABOR_ROW) = E41."""
@@ -545,9 +543,9 @@ class TestFullReceiptWithExpansion:
         expected_tva = (self.TOTAL_LABOR * TVA) / (100 + TVA)
         actual = ws[f"F{self.TOTAL_LABOR_ROW}"].value
         assert actual is not None, f"F{self.TOTAL_LABOR_ROW} is None"
-        assert abs(actual - expected_tva) < 0.01, (
-            f"Labor TVA at F{self.TOTAL_LABOR_ROW}: got {actual}, expected ~{expected_tva:.2f}"
-        )
+        assert (
+            abs(actual - expected_tva) < 0.01
+        ), f"Labor TVA at F{self.TOTAL_LABOR_ROW}: got {actual}, expected ~{expected_tva:.2f}"
 
     # ── billable parts ─────────────────────────────────────────────────────
 
@@ -614,9 +612,9 @@ class TestFullReceiptWithExpansion:
     def test_executant_at_correct_row(self, tmp_path):
         """Executant name written to B(EXECUTANT_ROW) = B56."""
         ws, _ = _run(self._receipt(), tmp_path)
-        assert ws[f"B{self.EXECUTANT_ROW}"].value == "Ion Marius", (
-            f"B{self.EXECUTANT_ROW}: {ws[f'B{self.EXECUTANT_ROW}'].value!r}"
-        )
+        assert (
+            ws[f"B{self.EXECUTANT_ROW}"].value == "Ion Marius"
+        ), f"B{self.EXECUTANT_ROW}: {ws[f'B{self.EXECUTANT_ROW}'].value!r}"
 
     def test_no_warnings_on_full_receipt(self, tmp_path):
         """No warnings on a fully populated receipt with section expansion."""

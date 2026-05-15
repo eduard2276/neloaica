@@ -17,19 +17,19 @@ Covers:
 
 import pytest
 
+from src.database.models.cars import create_cars_table
+from src.database.models.clients import create_clients_table
 from src.database.models.receipts import (
-    create_receipts_table,
     add_receipt,
+    create_receipts_table,
+    delete_receipt,
     get_all_receipts,
     get_receipt_by_id,
     get_receipt_by_plate_and_date,
+    get_receipts_count,
     update_receipt,
     update_receipt_status,
-    delete_receipt,
-    get_receipts_count,
 )
-from src.database.models.clients import create_clients_table
-from src.database.models.cars import create_cars_table
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -70,6 +70,7 @@ def _receipt(**overrides) -> dict:
 # Fixture
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def receipts_table(db):
     """Create prerequisite tables then the receipts table in the fresh in-memory DB.
@@ -86,6 +87,7 @@ def receipts_table(db):
 # TestCreateTable
 # ===========================================================================
 
+
 class TestCreateTable:
     def test_create_table_is_idempotent(self):
         create_receipts_table()
@@ -97,6 +99,7 @@ class TestCreateTable:
 # ===========================================================================
 # TestAddReceipt
 # ===========================================================================
+
 
 class TestAddReceipt:
     def test_add_returns_integer_id(self):
@@ -144,6 +147,7 @@ class TestAddReceipt:
 # TestGetReceiptById
 # ===========================================================================
 
+
 class TestGetReceiptById:
     def test_get_by_id_found(self):
         rid = add_receipt(_receipt())
@@ -163,6 +167,7 @@ class TestGetReceiptById:
 # ===========================================================================
 # TestGetAllReceipts
 # ===========================================================================
+
 
 class TestGetAllReceipts:
     def test_get_all_empty(self):
@@ -189,6 +194,7 @@ class TestGetAllReceipts:
 # TestUpdateReceipt
 # ===========================================================================
 
+
 class TestUpdateReceipt:
     def test_update_changes_plate_number(self):
         rid = add_receipt(_receipt(plate_number="B123ABC"))
@@ -211,6 +217,7 @@ class TestUpdateReceipt:
 # TestUpdateReceiptStatus
 # ===========================================================================
 
+
 class TestUpdateReceiptStatus:
     def test_status_update_only(self):
         rid = add_receipt(_receipt(status="Ongoing"))
@@ -226,6 +233,7 @@ class TestUpdateReceiptStatus:
 # ===========================================================================
 # TestDeleteReceipt
 # ===========================================================================
+
 
 class TestDeleteReceipt:
     def test_delete_existing(self):
@@ -253,6 +261,7 @@ class TestDeleteReceipt:
 # TestGetReceiptsCount
 # ===========================================================================
 
+
 class TestGetReceiptsCount:
     def test_count_zero_initially(self):
         assert get_receipts_count() == 0
@@ -272,6 +281,7 @@ class TestGetReceiptsCount:
 # ===========================================================================
 # TestGetReceiptByPlateAndDate — core duplicate-check
 # ===========================================================================
+
 
 class TestGetReceiptByPlateAndDate:
     def test_returns_none_when_no_receipts(self):
@@ -351,6 +361,7 @@ class TestGetReceiptByPlateAndDate:
 # ===========================================================================
 # TestDuplicateCheckEdgeCases
 # ===========================================================================
+
 
 class TestDuplicateCheckEdgeCases:
     def test_same_plate_different_dates_no_conflict(self):

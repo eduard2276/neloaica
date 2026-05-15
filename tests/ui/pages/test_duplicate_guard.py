@@ -9,14 +9,15 @@ Each test mocks the DB lookup (get_X_by_name) and the add/update call to verify:
 Tests use unittest.mock.patch to avoid touching any real database.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-from PySide6.QtWidgets import QApplication, QDialog
+from unittest.mock import MagicMock, patch
 
+import pytest
+from PySide6.QtWidgets import QApplication, QDialog
 
 # ---------------------------------------------------------------------------
 # Session-scoped Qt application
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="session")
 def qapp():
@@ -30,6 +31,7 @@ def qapp():
 # Helpers
 # ===========================================================================
 
+
 def _accept_dialog(dialog, data: dict):
     """Monkeypatch dialog.exec() to return Accepted and dialog.get_data() to
     return *data*, simulating the user filling the form and pressing Save."""
@@ -40,6 +42,7 @@ def _accept_dialog(dialog, data: dict):
 # ===========================================================================
 # Labor Page — Duplicate Guard
 # ===========================================================================
+
 
 class TestLaborPageDuplicateGuard:
     """Verify LaborPage.add_labor and .edit_labor_by_id enforce uniqueness."""
@@ -57,6 +60,7 @@ class TestLaborPageDuplicateGuard:
         self._patches = patches
 
         from src.pages.labor import LaborPage
+
         self.page = LaborPage()
         yield
         for p in patches:
@@ -76,8 +80,10 @@ class TestLaborPageDuplicateGuard:
 
     def test_add_labor_duplicate_does_not_call_add(self):
         self.mocks["get_labor_by_name"].return_value = {"id": 5, "service_name": "Oil Change"}
-        with patch("src.pages.labor.LaborDialog") as MockDialog, \
-             patch("src.pages.labor.show_warning") as mock_warn:
+        with (
+            patch("src.pages.labor.LaborDialog") as MockDialog,
+            patch("src.pages.labor.show_warning") as mock_warn,
+        ):
             dlg = MagicMock()
             dlg.exec.return_value = QDialog.DialogCode.Accepted
             dlg.get_data.return_value = {"service_name": "oil change"}
@@ -88,8 +94,10 @@ class TestLaborPageDuplicateGuard:
 
     def test_add_labor_duplicate_shows_warning(self):
         self.mocks["get_labor_by_name"].return_value = {"id": 5, "service_name": "Oil Change"}
-        with patch("src.pages.labor.LaborDialog") as MockDialog, \
-             patch("src.pages.labor.show_warning") as mock_warn:
+        with (
+            patch("src.pages.labor.LaborDialog") as MockDialog,
+            patch("src.pages.labor.show_warning") as mock_warn,
+        ):
             dlg = MagicMock()
             dlg.exec.return_value = QDialog.DialogCode.Accepted
             dlg.get_data.return_value = {"service_name": "OIL CHANGE"}
@@ -132,8 +140,10 @@ class TestLaborPageDuplicateGuard:
         self.page.load_data()
         # lookup returns a DIFFERENT record (id=2)
         self.mocks["get_labor_by_name"].return_value = {"id": 2, "service_name": "Oil Change"}
-        with patch("src.pages.labor.LaborDialog") as MockDialog, \
-             patch("src.pages.labor.show_warning") as mock_warn:
+        with (
+            patch("src.pages.labor.LaborDialog") as MockDialog,
+            patch("src.pages.labor.show_warning") as mock_warn,
+        ):
             dlg = MagicMock()
             dlg.exec.return_value = QDialog.DialogCode.Accepted
             dlg.get_data.return_value = {"service_name": "oil change"}
@@ -157,6 +167,7 @@ class TestLaborPageDuplicateGuard:
 # Parts Page — Duplicate Guard
 # ===========================================================================
 
+
 class TestPartsPageDuplicateGuard:
     @pytest.fixture(autouse=True)
     def setup(self, qapp):
@@ -171,6 +182,7 @@ class TestPartsPageDuplicateGuard:
         self._patches = patches
 
         from src.pages.parts import PartsPage
+
         self.page = PartsPage()
         yield
         for p in patches:
@@ -188,8 +200,10 @@ class TestPartsPageDuplicateGuard:
 
     def test_add_part_duplicate_does_not_call_add(self):
         self.mocks["get_part_by_name"].return_value = {"id": 3, "part_name": "Brake Disc"}
-        with patch("src.pages.parts.PartDialog") as MockDialog, \
-             patch("src.pages.parts.show_warning") as mock_warn:
+        with (
+            patch("src.pages.parts.PartDialog") as MockDialog,
+            patch("src.pages.parts.show_warning") as mock_warn,
+        ):
             dlg = MagicMock()
             dlg.exec.return_value = QDialog.DialogCode.Accepted
             dlg.get_data.return_value = {"part_name": "brake disc"}
@@ -226,8 +240,10 @@ class TestPartsPageDuplicateGuard:
         self.mocks["get_all_parts"].return_value = [{"id": 1, "part_name": "Old Part"}]
         self.page.load_data()
         self.mocks["get_part_by_name"].return_value = {"id": 7, "part_name": "Brake Disc"}
-        with patch("src.pages.parts.PartDialog") as MockDialog, \
-             patch("src.pages.parts.show_warning") as mock_warn:
+        with (
+            patch("src.pages.parts.PartDialog") as MockDialog,
+            patch("src.pages.parts.show_warning") as mock_warn,
+        ):
             dlg = MagicMock()
             dlg.exec.return_value = QDialog.DialogCode.Accepted
             dlg.get_data.return_value = {"part_name": "brake disc"}
@@ -251,6 +267,7 @@ class TestPartsPageDuplicateGuard:
 # Defects Page — Duplicate Guard
 # ===========================================================================
 
+
 class TestDefectsPageDuplicateGuard:
     @pytest.fixture(autouse=True)
     def setup(self, qapp):
@@ -265,6 +282,7 @@ class TestDefectsPageDuplicateGuard:
         self._patches = patches
 
         from src.pages.defects import DefectsPage
+
         self.page = DefectsPage()
         yield
         for p in patches:
@@ -282,8 +300,10 @@ class TestDefectsPageDuplicateGuard:
 
     def test_add_defect_duplicate_does_not_call_add(self):
         self.mocks["get_defect_by_name"].return_value = {"id": 4, "defect_name": "Scratch"}
-        with patch("src.pages.defects.DefectDialog") as MockDialog, \
-             patch("src.pages.defects.show_warning") as mock_warn:
+        with (
+            patch("src.pages.defects.DefectDialog") as MockDialog,
+            patch("src.pages.defects.show_warning") as mock_warn,
+        ):
             dlg = MagicMock()
             dlg.exec.return_value = QDialog.DialogCode.Accepted
             dlg.get_data.return_value = {"defect_name": "scratch"}
@@ -320,8 +340,10 @@ class TestDefectsPageDuplicateGuard:
         self.mocks["get_all_defects"].return_value = [{"id": 1, "defect_name": "Old Defect"}]
         self.page.load_data()
         self.mocks["get_defect_by_name"].return_value = {"id": 9, "defect_name": "Scratch"}
-        with patch("src.pages.defects.DefectDialog") as MockDialog, \
-             patch("src.pages.defects.show_warning") as mock_warn:
+        with (
+            patch("src.pages.defects.DefectDialog") as MockDialog,
+            patch("src.pages.defects.show_warning") as mock_warn,
+        ):
             dlg = MagicMock()
             dlg.exec.return_value = QDialog.DialogCode.Accepted
             dlg.get_data.return_value = {"defect_name": "scratch"}
@@ -345,6 +367,7 @@ class TestDefectsPageDuplicateGuard:
 # Employees Page — Duplicate Guard
 # ===========================================================================
 
+
 class TestEmployeesPageDuplicateGuard:
     @pytest.fixture(autouse=True)
     def setup(self, qapp):
@@ -359,6 +382,7 @@ class TestEmployeesPageDuplicateGuard:
         self._patches = patches
 
         from src.pages.employees import EmployeesPage
+
         self.page = EmployeesPage()
         yield
         for p in patches:
@@ -376,10 +400,14 @@ class TestEmployeesPageDuplicateGuard:
 
     def test_add_employee_duplicate_does_not_call_add(self):
         self.mocks["get_employee_by_name"].return_value = {
-            "id": 5, "first_name": "Ion", "last_name": "Popescu"
+            "id": 5,
+            "first_name": "Ion",
+            "last_name": "Popescu",
         }
-        with patch("src.pages.employees.EmployeeDialog") as MockDialog, \
-             patch("src.pages.employees.show_warning") as mock_warn:
+        with (
+            patch("src.pages.employees.EmployeeDialog") as MockDialog,
+            patch("src.pages.employees.show_warning") as mock_warn,
+        ):
             dlg = MagicMock()
             dlg.exec.return_value = QDialog.DialogCode.Accepted
             dlg.get_data.return_value = {"first_name": "ion", "last_name": "popescu"}
@@ -419,7 +447,9 @@ class TestEmployeesPageDuplicateGuard:
         ]
         self.page.load_data()
         self.mocks["get_employee_by_name"].return_value = {
-            "id": 1, "first_name": "Ion", "last_name": "Popescu"
+            "id": 1,
+            "first_name": "Ion",
+            "last_name": "Popescu",
         }
         with patch("src.pages.employees.EmployeeDialog") as MockDialog:
             dlg = MagicMock()
@@ -435,10 +465,14 @@ class TestEmployeesPageDuplicateGuard:
         ]
         self.page.load_data()
         self.mocks["get_employee_by_name"].return_value = {
-            "id": 2, "first_name": "Ion", "last_name": "Popescu"
+            "id": 2,
+            "first_name": "Ion",
+            "last_name": "Popescu",
         }
-        with patch("src.pages.employees.EmployeeDialog") as MockDialog, \
-             patch("src.pages.employees.show_warning") as mock_warn:
+        with (
+            patch("src.pages.employees.EmployeeDialog") as MockDialog,
+            patch("src.pages.employees.show_warning") as mock_warn,
+        ):
             dlg = MagicMock()
             dlg.exec.return_value = QDialog.DialogCode.Accepted
             dlg.get_data.return_value = {"first_name": "ion", "last_name": "popescu"}

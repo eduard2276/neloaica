@@ -12,14 +12,12 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from src import paths
-
 
 # ===========================================================================
 # TestIsFrozen
 # ===========================================================================
+
 
 class TestIsFrozen:
     def test_dev_mode_is_false(self):
@@ -35,6 +33,7 @@ class TestIsFrozen:
 # TestGetAppDir
 # ===========================================================================
 
+
 class TestGetAppDir:
     def test_returns_path(self):
         assert isinstance(paths.get_app_dir(), Path)
@@ -47,14 +46,17 @@ class TestGetAppDir:
 
     def test_frozen_mode_uses_executable_parent(self):
         fake_exe = Path("C:/some/where/app.exe")
-        with patch.object(sys, "frozen", True, create=True), \
-             patch.object(sys, "executable", str(fake_exe)):
+        with (
+            patch.object(sys, "frozen", True, create=True),
+            patch.object(sys, "executable", str(fake_exe)),
+        ):
             assert paths.get_app_dir() == fake_exe.parent
 
 
 # ===========================================================================
 # TestGetBundleDir
 # ===========================================================================
+
 
 class TestGetBundleDir:
     def test_dev_returns_project_root(self):
@@ -66,14 +68,17 @@ class TestGetBundleDir:
 
     def test_frozen_uses_meipass(self):
         fake_dir = "C:/tmp/_MEI12345"
-        with patch.object(sys, "frozen", True, create=True), \
-             patch.object(sys, "_MEIPASS", fake_dir, create=True):
+        with (
+            patch.object(sys, "frozen", True, create=True),
+            patch.object(sys, "_MEIPASS", fake_dir, create=True),
+        ):
             assert paths.get_bundle_dir() == Path(fake_dir)
 
 
 # ===========================================================================
 # TestProjectStructure
 # ===========================================================================
+
 
 class TestProjectStructure:
     """Verify the dev paths point at what we actually expect."""

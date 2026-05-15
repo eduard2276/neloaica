@@ -14,20 +14,20 @@ Covers:
 import pytest
 
 from src.database.models.defects import (
-    create_defects_table,
     add_defect,
+    create_defects_table,
+    delete_defect,
     get_all_defects,
     get_defect_by_id,
     get_defect_by_name,
-    update_defect,
-    delete_defect,
     get_defects_count,
+    update_defect,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixture
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def defects_table(db):
@@ -37,6 +37,7 @@ def defects_table(db):
 # ===========================================================================
 # TestCreateTable
 # ===========================================================================
+
 
 class TestCreateTable:
     def test_create_table_is_idempotent(self):
@@ -49,6 +50,7 @@ class TestCreateTable:
 # ===========================================================================
 # TestAdd
 # ===========================================================================
+
 
 class TestAdd:
     def test_add_one_returns_id(self):
@@ -84,6 +86,7 @@ class TestAdd:
 # TestGetByName
 # ===========================================================================
 
+
 class TestGetByName:
     def test_get_by_name_found(self):
         add_defect("Scratch on door")
@@ -116,6 +119,7 @@ class TestGetByName:
 # TestGetById
 # ===========================================================================
 
+
 class TestGetById:
     def test_get_by_id_found(self):
         defect_id = add_defect("Dent in bumper")
@@ -131,6 +135,7 @@ class TestGetById:
 # ===========================================================================
 # TestGetAll
 # ===========================================================================
+
 
 class TestGetAll:
     def test_get_all_empty(self):
@@ -161,6 +166,7 @@ class TestGetAll:
 # TestUpdate
 # ===========================================================================
 
+
 class TestUpdate:
     def test_update_to_new_unique_name(self):
         defect_id = add_defect("Old Defect")
@@ -188,6 +194,7 @@ class TestUpdate:
 # ===========================================================================
 # TestDelete
 # ===========================================================================
+
 
 class TestDelete:
     def test_delete_existing(self):
@@ -222,6 +229,7 @@ class TestDelete:
 # TestEdgeCases
 # ===========================================================================
 
+
 class TestEdgeCases:
     def test_name_stored_as_given(self):
         defect_id = add_defect("  Padded  ")
@@ -243,9 +251,9 @@ class TestEdgeCases:
         assert get_defect_by_id(defect_id)["defect_name"] == name
 
     def test_count_after_mixed_operations(self):
-        id1 = add_defect("A")
+        add_defect("A")
         id2 = add_defect("B")
-        id3 = add_defect("C")
+        add_defect("C")
         delete_defect(id2)
         add_defect("D")
         assert get_defects_count() == 3
