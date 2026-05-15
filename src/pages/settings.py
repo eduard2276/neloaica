@@ -53,10 +53,8 @@ class SettingsPage(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
 
-        # Title — overridden in green for the 1.0.2 auto-update demo
-        # (1.0.1 used blue; switching colour confirms a fresh swap).
         title = QLabel("Settings")
-        title.setStyleSheet(self.theme.page_title() + "color: #2e7d32;")
+        title.setStyleSheet(self.theme.page_title())
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(title)
 
