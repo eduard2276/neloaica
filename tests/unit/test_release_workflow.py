@@ -191,3 +191,79 @@ class TestRawText:
 
     def test_artifact_name_includes_tag(self, workflow_text):
         assert "Neloaica-${{ github.ref_name }}-windows" in workflow_text
+
+
+# ===========================================================================
+# TestManifestUpdateStep (PR #7)
+# ===========================================================================
+
+
+class TestManifestUpdateStep:
+    """Guards around the post-release manifest-update step.
+
+    These tests pin the structure introduced by PR #7: after the
+    GitHub Release is created, the workflow computes the SHA-256 of
+    the artefact, runs ``scripts/update_manifest.py``, and pushes the
+    refreshed ``update-manifest.json`` to ``main``.
+    """
+
+    def test_sha_step_exists(self, build_steps):
+        step = _step_named(build_steps, "Compute artefact SHA-256")
+        assert step is not None, "Missing SHA-256 step after release publish"
+        assert step.get("id") == "sha"
+        assert "Get-FileHash" in step["run"]
+        assert "SHA256" in step["run"]
+        assert "GITHUB_OUTPUT" in step["run"]
+
+    def test_manifest_update_step_exists(self, build_steps):
+        step = _step_named(build_steps, "Update update-manifest.json")
+        assert step is not None
+        # Must never roll back a successful release if the push fails.
+        assert step.get("continue-on-error") is True
+
+    def test_manifest_step_runs_script_with_required_args(self, build_steps):
+        step = _step_named(build_steps, "Update update-manifest.json")
+        assert step is not None
+        run = step["run"]
+        assert "scripts/update_manifest.py" in run
+        assert "--version" in run
+        assert "--channel stable" in run
+        assert "--sha256" in run
+        assert "--owner" in run
+        assert "--repo" in run
+        assert "--asset" in run
+        assert "--manifest update-manifest.json" in run
+
+    def test_manifest_step_uses_sha_output(self, build_steps):
+        step = _step_named(build_steps, "Update update-manifest.json")
+        assert step is not None
+        # The output reference ties the step to the previous SHA step.
+        assert "steps.sha.outputs.sha256" in step["run"]
+
+    def test_manifest_step_commits_to_main(self, build_steps):
+        step = _step_named(build_steps, "Update update-manifest.json")
+        assert step is not None
+        run = step["run"]
+        assert "git checkout main" in run
+        assert "git push origin main" in run
+        assert "github-actions[bot]" in run
+
+    def test_manifest_step_uses_skip_ci_in_commit(self, build_steps):
+        step = _step_named(build_steps, "Update update-manifest.json")
+        assert step is not None
+        # Avoid an infinite loop where the manifest commit triggers CI.
+        assert "[skip ci]" in step["run"]
+
+    def test_manifest_step_runs_after_release_publish(self, build_steps):
+        names = [s.get("name", "") for s in build_steps]
+        release_idx = next(i for i, n in enumerate(names) if "GitHub Release" in n)
+        sha_idx = next(i for i, n in enumerate(names) if "SHA-256" in n)
+        manifest_idx = next(i for i, n in enumerate(names) if "update-manifest.json" in n)
+        assert release_idx < sha_idx < manifest_idx
+
+    def test_manifest_step_checks_for_changes_via_lastexitcode(self, build_steps):
+        # PowerShell does not expose native exit codes as booleans;
+        # the workflow must check $LASTEXITCODE explicitly.
+        step = _step_named(build_steps, "Update update-manifest.json")
+        assert step is not None
+        assert "$LASTEXITCODE" in step["run"]

@@ -101,3 +101,60 @@ jobs:
           files: dist/Neloaica-${{ github.ref_name }}-windows.zip
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+      - name: Compute artefact SHA-256
+        # The in-app updater (PR #5) verifies this hash before applying
+        # the archive, so we make it available to the manifest step
+        # below as an environment variable.
+        id: sha
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash "dist/Neloaica-${{ github.ref_name }}-windows.zip" -Algorithm SHA256).Hash.ToLower()
+          Write-Output "sha256=$hash" >> $env:GITHUB_OUTPUT
+          Write-Host "SHA-256: $hash"
+
+      - name: Update update-manifest.json on main
+        # Updates the manifest at the URL the in-app updater polls
+        # (raw.githubusercontent.com/.../main/update-manifest.json).
+        # Failure here MUST NOT roll back the GitHub Release: the
+        # build artefact is already published — the worst case is
+        # that clients keep seeing the previous version until we
+        # fix the manifest manually.
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          $sha = "${{ steps.sha.outputs.sha256 }}"
+          $asset = "Neloaica-$tag-windows.zip"
+
+          git fetch origin main
+          git checkout main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          python scripts/update_manifest.py `
+            --version $version `
+            --channel stable `
+            --sha256 $sha `
+            --owner "${{ github.repository_owner }}" `
+            --repo "$(($env:GITHUB_REPOSITORY -split '/')[1])" `
+            --asset $asset `
+            --manifest update-manifest.json
+
+          # PowerShell does NOT translate native command exit codes into
+          # a truthy boolean automatically, so we check $LASTEXITCODE
+          # explicitly. `git diff --quiet` exits 0 when there are no
+          # differences and 1 otherwise.
+          git diff --quiet update-manifest.json
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Manifest already up to date — nothing to commit."
+            exit 0
+          }
+
+          git add update-manifest.json
+          $commitMsg = "release: update manifest for $tag`n`n[skip ci]"
+          git commit -m $commitMsg
+          git push origin main

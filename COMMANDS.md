@@ -95,6 +95,11 @@ Workflow-ul:
 4. Sanity-check: confirmă că `Neloaica.exe` și template-ul Excel sunt în `dist/Neloaica/`.
 5. Comprimă bundle-ul ca `Neloaica-vX.Y.Z-windows.zip`.
 6. Atașează ZIP-ul la un GitHub Release nou (sau actualizează cel existent).
+7. Calculează SHA-256 al ZIP-ului.
+8. Rulează `scripts/update_manifest.py` și împinge `update-manifest.json` actualizat
+   pe `main` (commit-ul include `[skip ci]` ca să nu trigger-eze CI inutil).
+   Manifestul este sursa de adevăr pentru funcția in-app de auto-update
+   (clienții citesc `raw.githubusercontent.com/.../main/update-manifest.json`).
 
 ### Pașii pentru un release nou
 
