@@ -18,12 +18,12 @@ def create_parts_table():
 def populate_parts_mock_data():
     """Populate parts with mock data."""
     db = DatabaseConnection()
-    
+
     # Check if data already exists
     existing = db.fetchone("SELECT COUNT(*) as count FROM parts")
     if existing and existing["count"] > 0:
         return  # Data already exists
-    
+
     # Insert mock parts
     parts_list = [
         ("Brake Pads",),
@@ -42,11 +42,8 @@ def populate_parts_mock_data():
         ("Tail Light Bulb",),
         ("Cabin Air Filter",),
     ]
-    
-    db.executemany(
-        "INSERT INTO parts (part_name) VALUES (?)",
-        parts_list
-    )
+
+    db.executemany("INSERT INTO parts (part_name) VALUES (?)", parts_list)
     db.commit()
 
 
@@ -65,10 +62,7 @@ def get_part_by_id(part_id: int) -> dict | None:
 def add_part(part_name: str) -> int:
     """Add a new part and return the ID."""
     db = DatabaseConnection()
-    cursor = db.execute(
-        "INSERT INTO parts (part_name) VALUES (?)",
-        (part_name,)
-    )
+    cursor = db.execute("INSERT INTO parts (part_name) VALUES (?)", (part_name,))
     db.commit()
     return cursor.lastrowid
 
@@ -85,10 +79,7 @@ def get_part_by_name(part_name: str) -> dict | None:
 def update_part(part_id: int, part_name: str):
     """Update an existing part."""
     db = DatabaseConnection()
-    db.execute(
-        "UPDATE parts SET part_name = ? WHERE id = ?",
-        (part_name, part_id)
-    )
+    db.execute("UPDATE parts SET part_name = ? WHERE id = ?", (part_name, part_id))
     db.commit()
 
 

@@ -14,20 +14,20 @@ Covers:
 import pytest
 
 from src.database.models.parts import (
-    create_parts_table,
     add_part,
+    create_parts_table,
+    delete_part,
     get_all_parts,
     get_part_by_id,
     get_part_by_name,
-    update_part,
-    delete_part,
     get_parts_count,
+    update_part,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixture
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def parts_table(db):
@@ -37,6 +37,7 @@ def parts_table(db):
 # ===========================================================================
 # TestCreateTable
 # ===========================================================================
+
 
 class TestCreateTable:
     def test_create_table_is_idempotent(self):
@@ -49,6 +50,7 @@ class TestCreateTable:
 # ===========================================================================
 # TestAdd
 # ===========================================================================
+
 
 class TestAdd:
     def test_add_one_returns_id(self):
@@ -84,6 +86,7 @@ class TestAdd:
 # TestGetByName
 # ===========================================================================
 
+
 class TestGetByName:
     def test_get_by_name_found(self):
         add_part("Brake Disc")
@@ -117,6 +120,7 @@ class TestGetByName:
 # TestGetById
 # ===========================================================================
 
+
 class TestGetById:
     def test_get_by_id_found(self):
         part_id = add_part("Spark Plug")
@@ -132,6 +136,7 @@ class TestGetById:
 # ===========================================================================
 # TestGetAll
 # ===========================================================================
+
 
 class TestGetAll:
     def test_get_all_empty(self):
@@ -162,6 +167,7 @@ class TestGetAll:
 # TestUpdate
 # ===========================================================================
 
+
 class TestUpdate:
     def test_update_to_new_unique_name(self):
         part_id = add_part("Old Name")
@@ -189,6 +195,7 @@ class TestUpdate:
 # ===========================================================================
 # TestDelete
 # ===========================================================================
+
 
 class TestDelete:
     def test_delete_existing(self):
@@ -223,6 +230,7 @@ class TestDelete:
 # TestEdgeCases
 # ===========================================================================
 
+
 class TestEdgeCases:
     def test_name_stored_as_given(self):
         part_id = add_part("  Padded  ")
@@ -244,9 +252,9 @@ class TestEdgeCases:
         assert get_part_by_id(part_id)["part_name"] == name
 
     def test_count_after_mixed_operations(self):
-        id1 = add_part("A")
+        add_part("A")
         id2 = add_part("B")
-        id3 = add_part("C")
+        add_part("C")
         delete_part(id2)
         add_part("D")
         assert get_parts_count() == 3

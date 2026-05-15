@@ -12,7 +12,6 @@ from unittest.mock import patch
 
 import pytest
 
-
 _PARTS = [
     {"id": 1, "part_name": "Brake Disc"},
     {"id": 2, "part_name": "Oil Filter"},
@@ -24,6 +23,7 @@ _PARTS = [
 def widget(qapp):
     with patch("src.pages.receipts.parts_section.get_all_parts", return_value=list(_PARTS)):
         from src.pages.receipts.parts_section import PartsSectionWidget
+
         return PartsSectionWidget()
 
 

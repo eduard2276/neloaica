@@ -9,19 +9,20 @@ Covers:
 """
 
 import pytest
-
 from PySide6.QtCore import QDate
 
 
 @pytest.fixture
 def widget(qapp):
     from src.pages.receipts.estimates_section import EstimatesSectionWidget
+
     return EstimatesSectionWidget()
 
 
 # ===========================================================================
 # TestDefaults
 # ===========================================================================
+
 
 class TestDefaults:
     def test_initial_cost_is_zero(self, widget):
@@ -34,6 +35,7 @@ class TestDefaults:
 # ===========================================================================
 # TestCostFormatting
 # ===========================================================================
+
 
 class TestCostFormatting:
     def test_thousand_separator(self, widget):
@@ -61,6 +63,7 @@ class TestCostFormatting:
 # TestGetEstimateCost
 # ===========================================================================
 
+
 class TestGetEstimateCost:
     def test_blank_returns_zero(self, widget):
         widget.estimate_cost_input.setText("")
@@ -81,6 +84,7 @@ class TestGetEstimateCost:
 # ===========================================================================
 # TestSignal
 # ===========================================================================
+
 
 class TestSignal:
     def test_signal_carries_cost_and_date(self, widget):
@@ -104,6 +108,7 @@ class TestSignal:
 # ===========================================================================
 # TestSetData
 # ===========================================================================
+
 
 class TestSetData:
     def test_round_trip(self, widget):

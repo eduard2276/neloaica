@@ -26,7 +26,6 @@ Formulas:
   total_offset    = row_offset + disc_extra_rows
 """
 
-import pytest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -105,6 +104,7 @@ def _has_medium_bottom(cell) -> bool:
 # Baseline: n_discovered <= 5  →  no expansion, existing behaviour unchanged
 # ===========================================================================
 
+
 class TestDiscoveredBaselineUnchanged:
     """Sanity: five or fewer discovered defects must not trigger expansion."""
 
@@ -112,9 +112,9 @@ class TestDiscoveredBaselineUnchanged:
         """Five discovered defects fill A20-A24 with no insertion."""
         ws, _ = _run(_base(discovered_defects=list(range(1, 6))), tmp_path)
         for i in range(5):
-            assert ws[f"A{20 + i}"].value == f"Disc {i + 1}", (
-                f"A{20 + i}: {ws[f'A{20 + i}'].value!r}"
-            )
+            assert (
+                ws[f"A{20 + i}"].value == f"Disc {i + 1}"
+            ), f"A{20 + i}: {ws[f'A{20 + i}'].value!r}"
 
     def test_five_discovered_no_warning(self, tmp_path):
         ws, warnings = _run(_base(discovered_defects=list(range(1, 6))), tmp_path)
@@ -123,30 +123,29 @@ class TestDiscoveredBaselineUnchanged:
     def test_accept_lucrarile_at_c20_baseline(self, tmp_path):
         """'Accept lucrarile...' remains at C20 when no expansion occurs."""
         ws, _ = _run(_base(), tmp_path)
-        assert ws["C20"].value == "Accept lucrarile suplimentar constatate.", (
-            f"C20: {ws['C20'].value!r}"
-        )
+        assert (
+            ws["C20"].value == "Accept lucrarile suplimentar constatate."
+        ), f"C20: {ws['C20'].value!r}"
 
     def test_semnatura_disc_at_c21_baseline(self, tmp_path):
         """'Semnatura client:' (discovered) remains at C21 at baseline."""
         ws, _ = _run(_base(), tmp_path)
-        assert ws["C21"].value == "Semnatura client:", (
-            f"C21: {ws['C21'].value!r}"
-        )
+        assert ws["C21"].value == "Semnatura client:", f"C21: {ws['C21'].value!r}"
 
     def test_bottom_border_at_row_24_baseline(self, tmp_path):
         """Bottom border of the disc section stays at row 24 with no expansion."""
         ws, _ = _run(_base(), tmp_path)
         for col in ["A", "B", "C", "D", "E", "F"]:
-            assert _has_medium_bottom(ws[f"{col}24"]), (
-                f"{col}24 should have medium bottom border (baseline)"
-            )
+            assert _has_medium_bottom(
+                ws[f"{col}24"]
+            ), f"{col}24 should have medium bottom border (baseline)"
 
 
 # ===========================================================================
 # n_discovered = 8 with NO client section expansion  (row_offset = 0)
 # disc_extra_rows = 3,  total_offset = 3
 # ===========================================================================
+
 
 class TestDiscExpansionNoClientExpansion:
     """
@@ -163,11 +162,11 @@ class TestDiscExpansionNoClientExpansion:
       Labor base         : B39  (= 36 + 3, with 1 labor item)
     """
 
-    N   = 8
+    N = 8
     IDS = list(range(1, 9))
-    DISC_EXTRA = 3   # max(0, 8-5)
-    OFFSET     = 0   # row_offset (no client expansion)
-    TOTAL      = DISC_EXTRA + OFFSET   # 3
+    DISC_EXTRA = 3  # max(0, 8-5)
+    OFFSET = 0  # row_offset (no client expansion)
+    TOTAL = DISC_EXTRA + OFFSET  # 3
 
     def test_all_discovered_defects_written(self, tmp_path):
         """All 8 discovered defects written to A20-A27 with no truncation."""
@@ -189,50 +188,46 @@ class TestDiscExpansionNoClientExpansion:
         """'Accept lucrarile...' must remain at C20 (above insertion point)."""
         ws, _ = _run(_base(discovered_defects=self.IDS), tmp_path)
         row = 20 + self.OFFSET
-        assert ws[f"C{row}"].value == "Accept lucrarile suplimentar constatate.", (
-            f"C{row}: {ws[f'C{row}'].value!r}"
-        )
+        assert (
+            ws[f"C{row}"].value == "Accept lucrarile suplimentar constatate."
+        ), f"C{row}: {ws[f'C{row}'].value!r}"
 
     def test_semnatura_disc_stays_in_place(self, tmp_path):
         """'Semnatura client:' (discovered) must remain at C21 (above insertion point)."""
         ws, _ = _run(_base(discovered_defects=self.IDS), tmp_path)
         row = 21 + self.OFFSET
-        assert ws[f"C{row}"].value == "Semnatura client:", (
-            f"C{row}: {ws[f'C{row}'].value!r}"
-        )
+        assert ws[f"C{row}"].value == "Semnatura client:", f"C{row}: {ws[f'C{row}'].value!r}"
 
     def test_bottom_border_moved_to_correct_row(self, tmp_path):
         """Bottom border must be at row 27 (= 24 + disc_extra_rows)."""
         ws, _ = _run(_base(discovered_defects=self.IDS), tmp_path)
-        new_border_row = 24 + self.OFFSET + self.DISC_EXTRA   # 27
+        new_border_row = 24 + self.OFFSET + self.DISC_EXTRA  # 27
         for col in ["A", "B", "C", "D", "E", "F"]:
-            assert _has_medium_bottom(ws[f"{col}{new_border_row}"]), (
-                f"{col}{new_border_row} should have medium bottom border"
-            )
+            assert _has_medium_bottom(
+                ws[f"{col}{new_border_row}"]
+            ), f"{col}{new_border_row} should have medium bottom border"
 
     def test_bottom_border_removed_from_original_row(self, tmp_path):
         """Medium bottom border must NOT remain at old row 24 after expansion."""
         ws, _ = _run(_base(discovered_defects=self.IDS), tmp_path)
         for col in ["C", "D", "E", "F"]:
-            assert not _has_medium_bottom(ws[f"{col}24"]), (
-                f"{col}24 still has medium bottom border after expansion"
-            )
+            assert not _has_medium_bottom(
+                ws[f"{col}24"]
+            ), f"{col}24 still has medium bottom border after expansion"
 
     def test_masina_mai_prezinta_shifts_down(self, tmp_path):
         """'Masina mai prezinta...' must be at A(25 + total_offset) = A28."""
         ws, _ = _run(_base(discovered_defects=self.IDS), tmp_path)
         row = 25 + self.TOTAL
-        assert "Masina mai prezinta" in (ws[f"A{row}"].value or ""), (
-            f"A{row}: {ws[f'A{row}'].value!r}"
-        )
+        assert "Masina mai prezinta" in (
+            ws[f"A{row}"].value or ""
+        ), f"A{row}: {ws[f'A{row}'].value!r}"
 
     def test_manopera_shifts_by_total_offset(self, tmp_path):
         """MANOPERA header must be at A(32 + total_offset) = A35."""
         ws, _ = _run(_base(discovered_defects=self.IDS), tmp_path)
         row = 32 + self.TOTAL
-        assert ws[f"A{row}"].value == "MANOPERA", (
-            f"A{row}: {ws[f'A{row}'].value!r}"
-        )
+        assert ws[f"A{row}"].value == "MANOPERA", f"A{row}: {ws[f'A{row}'].value!r}"
 
     def test_labor_shifts_by_total_offset(self, tmp_path):
         """With 1 labor item, it must be at B(36 + total_offset) = B39."""
@@ -241,15 +236,14 @@ class TestDiscExpansionNoClientExpansion:
             tmp_path,
         )
         row = 36 + self.TOTAL
-        assert ws[f"B{row}"].value == "Schimb ulei", (
-            f"B{row}: {ws[f'B{row}'].value!r}"
-        )
+        assert ws[f"B{row}"].value == "Schimb ulei", f"B{row}: {ws[f'B{row}'].value!r}"
 
 
 # ===========================================================================
 # n_discovered = 8 WITH client section expansion  (row_offset = 3, 8 defects)
 # disc_extra_rows = 3,  total_offset = 6
 # ===========================================================================
+
 
 class TestDiscExpansionWithClientExpansion:
     """
@@ -267,22 +261,20 @@ class TestDiscExpansionWithClientExpansion:
       Labor base         : B42  (= 36 + 6, with 1 labor item)
     """
 
-    N_CLIENT  = 8
-    N_DISC    = 8
+    N_CLIENT = 8
+    N_DISC = 8
     CLIENT_IDS = list(range(1, 9))
-    DISC_IDS   = list(range(1, 9))
-    ROW_OFFSET = 3   # from client section (max(5,8,0+2)-5 = 3)
-    DISC_EXTRA = 3   # max(0, 8-5)
-    TOTAL      = ROW_OFFSET + DISC_EXTRA   # 6
+    DISC_IDS = list(range(1, 9))
+    ROW_OFFSET = 3  # from client section (max(5,8,0+2)-5 = 3)
+    DISC_EXTRA = 3  # max(0, 8-5)
+    TOTAL = ROW_OFFSET + DISC_EXTRA  # 6
 
     def test_all_discovered_defects_written_at_shifted_rows(self, tmp_path):
         """All 8 disc defects written to A23-A30 (shifted by row_offset=3)."""
-        ws, _ = _run(
-            _base(defects=self.CLIENT_IDS, discovered_defects=self.DISC_IDS), tmp_path
-        )
+        ws, _ = _run(_base(defects=self.CLIENT_IDS, discovered_defects=self.DISC_IDS), tmp_path)
         for i, did in enumerate(self.DISC_IDS):
             expected = MOCK_DEFECTS[did]["defect_name"]
-            row = 20 + self.ROW_OFFSET + i   # 23..30
+            row = 20 + self.ROW_OFFSET + i  # 23..30
             assert ws[f"A{row}"].value == expected, (
                 f"Disc defect {i + 1}: A{row} expected {expected!r}, "
                 f"got {ws[f'A{row}'].value!r}"
@@ -297,54 +289,40 @@ class TestDiscExpansionWithClientExpansion:
 
     def test_accept_lucrarile_shifted_by_client_offset_only(self, tmp_path):
         """'Accept lucrarile...' at C(20 + row_offset) = C23, NOT shifted by disc expansion."""
-        ws, _ = _run(
-            _base(defects=self.CLIENT_IDS, discovered_defects=self.DISC_IDS), tmp_path
-        )
-        row = 20 + self.ROW_OFFSET   # C23
-        assert ws[f"C{row}"].value == "Accept lucrarile suplimentar constatate.", (
-            f"C{row}: {ws[f'C{row}'].value!r}"
-        )
+        ws, _ = _run(_base(defects=self.CLIENT_IDS, discovered_defects=self.DISC_IDS), tmp_path)
+        row = 20 + self.ROW_OFFSET  # C23
+        assert (
+            ws[f"C{row}"].value == "Accept lucrarile suplimentar constatate."
+        ), f"C{row}: {ws[f'C{row}'].value!r}"
 
     def test_semnatura_disc_shifted_by_client_offset_only(self, tmp_path):
         """'Semnatura client:' (disc) at C(21 + row_offset) = C24, NOT shifted by disc."""
-        ws, _ = _run(
-            _base(defects=self.CLIENT_IDS, discovered_defects=self.DISC_IDS), tmp_path
-        )
-        row = 21 + self.ROW_OFFSET   # C24
-        assert ws[f"C{row}"].value == "Semnatura client:", (
-            f"C{row}: {ws[f'C{row}'].value!r}"
-        )
+        ws, _ = _run(_base(defects=self.CLIENT_IDS, discovered_defects=self.DISC_IDS), tmp_path)
+        row = 21 + self.ROW_OFFSET  # C24
+        assert ws[f"C{row}"].value == "Semnatura client:", f"C{row}: {ws[f'C{row}'].value!r}"
 
     def test_bottom_border_with_both_expansions(self, tmp_path):
         """Bottom border at row (24 + row_offset + disc_extra) = row 30."""
-        ws, _ = _run(
-            _base(defects=self.CLIENT_IDS, discovered_defects=self.DISC_IDS), tmp_path
-        )
-        border_row = 24 + self.ROW_OFFSET + self.DISC_EXTRA   # 30
+        ws, _ = _run(_base(defects=self.CLIENT_IDS, discovered_defects=self.DISC_IDS), tmp_path)
+        border_row = 24 + self.ROW_OFFSET + self.DISC_EXTRA  # 30
         for col in ["A", "B", "C", "D", "E", "F"]:
-            assert _has_medium_bottom(ws[f"{col}{border_row}"]), (
-                f"{col}{border_row} should have medium bottom border"
-            )
+            assert _has_medium_bottom(
+                ws[f"{col}{border_row}"]
+            ), f"{col}{border_row} should have medium bottom border"
 
     def test_masina_mai_prezinta_with_both_expansions(self, tmp_path):
         """'Masina mai prezinta...' at A(25 + total_offset) = A31."""
-        ws, _ = _run(
-            _base(defects=self.CLIENT_IDS, discovered_defects=self.DISC_IDS), tmp_path
-        )
-        row = 25 + self.TOTAL   # 31
-        assert "Masina mai prezinta" in (ws[f"A{row}"].value or ""), (
-            f"A{row}: {ws[f'A{row}'].value!r}"
-        )
+        ws, _ = _run(_base(defects=self.CLIENT_IDS, discovered_defects=self.DISC_IDS), tmp_path)
+        row = 25 + self.TOTAL  # 31
+        assert "Masina mai prezinta" in (
+            ws[f"A{row}"].value or ""
+        ), f"A{row}: {ws[f'A{row}'].value!r}"
 
     def test_manopera_with_both_expansions(self, tmp_path):
         """MANOPERA at A(32 + total_offset) = A38."""
-        ws, _ = _run(
-            _base(defects=self.CLIENT_IDS, discovered_defects=self.DISC_IDS), tmp_path
-        )
-        row = 32 + self.TOTAL   # 38
-        assert ws[f"A{row}"].value == "MANOPERA", (
-            f"A{row}: {ws[f'A{row}'].value!r}"
-        )
+        ws, _ = _run(_base(defects=self.CLIENT_IDS, discovered_defects=self.DISC_IDS), tmp_path)
+        row = 32 + self.TOTAL  # 38
+        assert ws[f"A{row}"].value == "MANOPERA", f"A{row}: {ws[f'A{row}'].value!r}"
 
     def test_labor_with_both_expansions(self, tmp_path):
         """With 1 labor item, it must be at B(36 + total_offset) = B42."""
@@ -357,15 +335,14 @@ class TestDiscExpansionWithClientExpansion:
             ),
             tmp_path,
         )
-        row = 36 + self.TOTAL   # 42
-        assert ws[f"B{row}"].value == "Schimb ulei", (
-            f"B{row}: {ws[f'B{row}'].value!r}"
-        )
+        row = 36 + self.TOTAL  # 42
+        assert ws[f"B{row}"].value == "Schimb ulei", f"B{row}: {ws[f'B{row}'].value!r}"
 
 
 # ===========================================================================
 # Discovered section border behaviour at various sizes
 # ===========================================================================
+
 
 class TestDiscSectionBorderLogic:
     """Bottom border movement at the exact expansion thresholds."""
@@ -374,31 +351,25 @@ class TestDiscSectionBorderLogic:
         """n=5: no expansion → bottom border stays at row 24."""
         ws, _ = _run(_base(discovered_defects=list(range(1, 6))), tmp_path)
         for col in ["C", "D", "E", "F"]:
-            assert _has_medium_bottom(ws[f"{col}24"]), (
-                f"{col}24 should keep medium bottom with n=5"
-            )
+            assert _has_medium_bottom(ws[f"{col}24"]), f"{col}24 should keep medium bottom with n=5"
 
     def test_border_moves_with_six_discovered(self, tmp_path):
         """n=6: disc_extra=1 → border moves from row 24 to row 25."""
         ws, _ = _run(_base(discovered_defects=list(range(1, 7))), tmp_path)
         for col in ["C", "D", "E", "F"]:
-            assert not _has_medium_bottom(ws[f"{col}24"]), (
-                f"{col}24 should NOT have medium bottom with n=6"
-            )
-            assert _has_medium_bottom(ws[f"{col}25"]), (
-                f"{col}25 should have medium bottom with n=6"
-            )
+            assert not _has_medium_bottom(
+                ws[f"{col}24"]
+            ), f"{col}24 should NOT have medium bottom with n=6"
+            assert _has_medium_bottom(ws[f"{col}25"]), f"{col}25 should have medium bottom with n=6"
 
     def test_border_moves_with_eight_discovered(self, tmp_path):
         """n=8: disc_extra=3 → border moves from row 24 to row 27."""
         ws, _ = _run(_base(discovered_defects=list(range(1, 9))), tmp_path)
         for col in ["C", "D", "E", "F"]:
-            assert not _has_medium_bottom(ws[f"{col}24"]), (
-                f"{col}24 should NOT have medium bottom with n=8"
-            )
-            assert _has_medium_bottom(ws[f"{col}27"]), (
-                f"{col}27 should have medium bottom with n=8"
-            )
+            assert not _has_medium_bottom(
+                ws[f"{col}24"]
+            ), f"{col}24 should NOT have medium bottom with n=8"
+            assert _has_medium_bottom(ws[f"{col}27"]), f"{col}27 should have medium bottom with n=8"
 
     def test_a_column_bottom_border_moves_with_eight(self, tmp_path):
         """A column bottom border also moves to row 27 with n=8."""

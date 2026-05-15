@@ -10,14 +10,14 @@ Covers:
 
 import pytest
 
-from src.styles.theme_manager import ThemeManager
-from src.styles.colors import LIGHT_THEME, DARK_THEME
 from src.styles import theme as global_theme
-
+from src.styles.colors import DARK_THEME, LIGHT_THEME
+from src.styles.theme_manager import ThemeManager
 
 # ===========================================================================
 # TestSingleton
 # ===========================================================================
+
 
 class TestSingleton:
     def test_two_instances_are_the_same_object(self):
@@ -33,6 +33,7 @@ class TestSingleton:
 # ===========================================================================
 # TestThemeSwitching
 # ===========================================================================
+
 
 class TestThemeSwitching:
     def teardown_method(self):
@@ -65,6 +66,7 @@ class TestThemeSwitching:
 # TestColors
 # ===========================================================================
 
+
 class TestColors:
     def test_known_color_returns_palette_value(self):
         ThemeManager().set_theme("light")
@@ -81,13 +83,31 @@ class TestColors:
 # A representative subset; verify every generator is callable and returns a
 # non-empty CSS-like string (no exception, no None).
 _GENERATORS = [
-    "page_title", "combobox", "line_edit", "line_edit_dialog",
-    "search_input", "groupbox", "groupbox_inactive", "list_widget",
-    "list_widget_with_items", "tab_widget", "table", "dialog",
-    "button_add", "button_remove", "message_box_confirm",
-    "sidebar", "sidebar_title", "sidebar_button", "content_area",
-    "scroll_area", "label_item", "form_label", "line_edit_readonly",
-    "calendar_dialog", "calendar",
+    "page_title",
+    "combobox",
+    "line_edit",
+    "line_edit_dialog",
+    "search_input",
+    "groupbox",
+    "groupbox_inactive",
+    "list_widget",
+    "list_widget_with_items",
+    "tab_widget",
+    "table",
+    "dialog",
+    "button_add",
+    "button_remove",
+    "message_box_confirm",
+    "sidebar",
+    "sidebar_title",
+    "sidebar_button",
+    "content_area",
+    "scroll_area",
+    "label_item",
+    "form_label",
+    "line_edit_readonly",
+    "calendar_dialog",
+    "calendar",
 ]
 
 
@@ -104,6 +124,7 @@ class TestStyleGenerators:
 # ===========================================================================
 # TestButtonVariants
 # ===========================================================================
+
 
 class TestButtonVariants:
     @pytest.mark.parametrize("variant", ["primary", "success", "danger", "cancel", "gray"])
@@ -125,6 +146,7 @@ class TestButtonVariants:
 # ===========================================================================
 # TestPaletteFidelity
 # ===========================================================================
+
 
 class TestPaletteFidelity:
     @pytest.mark.parametrize("color_name", LIGHT_THEME.keys())

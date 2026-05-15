@@ -16,14 +16,19 @@ Tests verify:
 All DB and service calls are mocked so no real DB is touched.
 """
 
+from typing import TYPE_CHECKING
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, MagicMock, call
 from PySide6.QtWidgets import QApplication
 
+if TYPE_CHECKING:
+    from src.pages.receipts.receipt_form import ReceiptFormPage  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Session-scoped Qt application
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="session")
 def qapp():
@@ -83,6 +88,7 @@ def _make_form(qapp) -> "ReceiptFormPage":
         p.start()
 
     from src.pages.receipts.receipt_form import ReceiptFormPage
+
     form = ReceiptFormPage()
     form.receipt_data = dict(_RECEIPT_DATA)
 
@@ -96,6 +102,7 @@ def _make_form(qapp) -> "ReceiptFormPage":
 # TestSaveClickedDuplicateGuard
 # ===========================================================================
 
+
 class TestSaveClickedDuplicateGuard:
     @pytest.fixture(autouse=True)
     def form(self, qapp):
@@ -108,11 +115,14 @@ class TestSaveClickedDuplicateGuard:
         self._form.receipt_data = dict(_RECEIPT_DATA, plate_number="")
         self._form.editing_receipt_id = None
 
-        with patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=None) as mock_check, \
-             patch("src.pages.receipts.receipt_form.add_receipt", return_value=1) as mock_add, \
-             patch("src.pages.receipts.receipt_form.show_info"), \
-             patch("src.pages.receipts.receipt_form.show_warning") as mock_warn:
+        with (
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date", return_value=None
+            ) as mock_check,
+            patch("src.pages.receipts.receipt_form.add_receipt", return_value=1) as mock_add,
+            patch("src.pages.receipts.receipt_form.show_info"),
+            patch("src.pages.receipts.receipt_form.show_warning") as mock_warn,
+        ):
             self._form.on_save_clicked()
 
         mock_check.assert_called_once()
@@ -122,10 +132,13 @@ class TestSaveClickedDuplicateGuard:
     def test_save_no_duplicate_calls_add_receipt(self):
         self._form.editing_receipt_id = None
 
-        with patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=None) as mock_check, \
-             patch("src.pages.receipts.receipt_form.add_receipt", return_value=42) as mock_add, \
-             patch("src.pages.receipts.receipt_form.show_info"):
+        with (
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date", return_value=None
+            ) as mock_check,
+            patch("src.pages.receipts.receipt_form.add_receipt", return_value=42) as mock_add,
+            patch("src.pages.receipts.receipt_form.show_info"),
+        ):
             self._form.on_save_clicked()
 
         mock_check.assert_called_once_with("B123ABC", "08.05.2026", exclude_id=None)
@@ -134,10 +147,14 @@ class TestSaveClickedDuplicateGuard:
     def test_save_duplicate_shows_warning(self):
         self._form.editing_receipt_id = None
 
-        with patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=_EXISTING_RECEIPT), \
-             patch("src.pages.receipts.receipt_form.add_receipt") as mock_add, \
-             patch("src.pages.receipts.receipt_form.show_warning") as mock_warn:
+        with (
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
+                return_value=_EXISTING_RECEIPT,
+            ),
+            patch("src.pages.receipts.receipt_form.add_receipt") as mock_add,
+            patch("src.pages.receipts.receipt_form.show_warning") as mock_warn,
+        ):
             self._form.on_save_clicked()
 
         mock_add.assert_not_called()
@@ -148,10 +165,14 @@ class TestSaveClickedDuplicateGuard:
     def test_save_duplicate_does_not_add_receipt(self):
         self._form.editing_receipt_id = None
 
-        with patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=_EXISTING_RECEIPT), \
-             patch("src.pages.receipts.receipt_form.add_receipt") as mock_add, \
-             patch("src.pages.receipts.receipt_form.show_warning"):
+        with (
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
+                return_value=_EXISTING_RECEIPT,
+            ),
+            patch("src.pages.receipts.receipt_form.add_receipt") as mock_add,
+            patch("src.pages.receipts.receipt_form.show_warning"),
+        ):
             self._form.on_save_clicked()
 
         mock_add.assert_not_called()
@@ -161,9 +182,11 @@ class TestSaveClickedDuplicateGuard:
         self._form.receipt_data = dict(_RECEIPT_DATA, client_id=None)
         self._form.editing_receipt_id = None
 
-        with patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date") as mock_check, \
-             patch("src.pages.receipts.receipt_form.add_receipt") as mock_add, \
-             patch("src.pages.receipts.receipt_form.show_warning"):
+        with (
+            patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date") as mock_check,
+            patch("src.pages.receipts.receipt_form.add_receipt") as mock_add,
+            patch("src.pages.receipts.receipt_form.show_warning"),
+        ):
             self._form.on_save_clicked()
 
         mock_check.assert_not_called()
@@ -174,10 +197,13 @@ class TestSaveClickedDuplicateGuard:
     def test_save_edit_no_duplicate_calls_update(self):
         self._form.editing_receipt_id = 7
 
-        with patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=None) as mock_check, \
-             patch("src.pages.receipts.receipt_form.update_receipt") as mock_update, \
-             patch("src.pages.receipts.receipt_form.show_info"):
+        with (
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date", return_value=None
+            ) as mock_check,
+            patch("src.pages.receipts.receipt_form.update_receipt") as mock_update,
+            patch("src.pages.receipts.receipt_form.show_info"),
+        ):
             self._form.on_save_clicked()
 
         mock_check.assert_called_once_with("B123ABC", "08.05.2026", exclude_id=7)
@@ -187,11 +213,14 @@ class TestSaveClickedDuplicateGuard:
         """Same plate+date but exclude_id matches → no conflict."""
         self._form.editing_receipt_id = 7
 
-        with patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=None), \
-             patch("src.pages.receipts.receipt_form.update_receipt") as mock_update, \
-             patch("src.pages.receipts.receipt_form.show_warning") as mock_warn, \
-             patch("src.pages.receipts.receipt_form.show_info"):
+        with (
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date", return_value=None
+            ),
+            patch("src.pages.receipts.receipt_form.update_receipt") as mock_update,
+            patch("src.pages.receipts.receipt_form.show_warning") as mock_warn,
+            patch("src.pages.receipts.receipt_form.show_info"),
+        ):
             self._form.on_save_clicked()
 
         mock_update.assert_called_once()
@@ -200,10 +229,14 @@ class TestSaveClickedDuplicateGuard:
     def test_save_edit_other_receipt_has_same_plate_date_is_blocked(self):
         self._form.editing_receipt_id = 7
 
-        with patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=_EXISTING_RECEIPT), \
-             patch("src.pages.receipts.receipt_form.update_receipt") as mock_update, \
-             patch("src.pages.receipts.receipt_form.show_warning") as mock_warn:
+        with (
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
+                return_value=_EXISTING_RECEIPT,
+            ),
+            patch("src.pages.receipts.receipt_form.update_receipt") as mock_update,
+            patch("src.pages.receipts.receipt_form.show_warning") as mock_warn,
+        ):
             self._form.on_save_clicked()
 
         mock_update.assert_not_called()
@@ -212,10 +245,13 @@ class TestSaveClickedDuplicateGuard:
     def test_save_exclude_id_passed_correctly_when_editing(self):
         self._form.editing_receipt_id = 55
 
-        with patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=None) as mock_check, \
-             patch("src.pages.receipts.receipt_form.update_receipt"), \
-             patch("src.pages.receipts.receipt_form.show_info"):
+        with (
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date", return_value=None
+            ) as mock_check,
+            patch("src.pages.receipts.receipt_form.update_receipt"),
+            patch("src.pages.receipts.receipt_form.show_info"),
+        ):
             self._form.on_save_clicked()
 
         mock_check.assert_called_once_with("B123ABC", "08.05.2026", exclude_id=55)
@@ -223,10 +259,13 @@ class TestSaveClickedDuplicateGuard:
     def test_save_exclude_id_is_none_when_new(self):
         self._form.editing_receipt_id = None
 
-        with patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=None) as mock_check, \
-             patch("src.pages.receipts.receipt_form.add_receipt", return_value=1), \
-             patch("src.pages.receipts.receipt_form.show_info"):
+        with (
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date", return_value=None
+            ) as mock_check,
+            patch("src.pages.receipts.receipt_form.add_receipt", return_value=1),
+            patch("src.pages.receipts.receipt_form.show_info"),
+        ):
             self._form.on_save_clicked()
 
         mock_check.assert_called_once_with("B123ABC", "08.05.2026", exclude_id=None)
@@ -236,6 +275,7 @@ class TestSaveClickedDuplicateGuard:
 # TestGenerateDuplicateGuard
 # ===========================================================================
 
+
 class TestGenerateDuplicateGuard:
     @pytest.fixture(autouse=True)
     def form(self, qapp):
@@ -244,12 +284,16 @@ class TestGenerateDuplicateGuard:
     def test_generate_duplicate_shows_warning_and_does_not_add(self):
         self._form.editing_receipt_id = None
 
-        with patch("src.pages.receipts.receipt_form.template_exists", return_value=True), \
-             patch("src.pages.receipts.receipt_form.create_backup"), \
-             patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=_EXISTING_RECEIPT), \
-             patch("src.pages.receipts.receipt_form.add_receipt") as mock_add, \
-             patch("src.pages.receipts.receipt_form.show_warning") as mock_warn:
+        with (
+            patch("src.pages.receipts.receipt_form.template_exists", return_value=True),
+            patch("src.pages.receipts.receipt_form.create_backup"),
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
+                return_value=_EXISTING_RECEIPT,
+            ),
+            patch("src.pages.receipts.receipt_form.add_receipt") as mock_add,
+            patch("src.pages.receipts.receipt_form.show_warning") as mock_warn,
+        ):
             self._form._do_generate()
 
         mock_add.assert_not_called()
@@ -260,15 +304,20 @@ class TestGenerateDuplicateGuard:
     def test_generate_no_duplicate_proceeds_to_add(self):
         self._form.editing_receipt_id = None
 
-        with patch("src.pages.receipts.receipt_form.template_exists", return_value=True), \
-             patch("src.pages.receipts.receipt_form.create_backup"), \
-             patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=None), \
-             patch("src.pages.receipts.receipt_form.generate_receipt_excel",
-                   return_value=("out.xlsx", [])), \
-             patch("src.pages.receipts.receipt_form.add_receipt", return_value=1) as mock_add, \
-             patch("src.pages.receipts.receipt_form.show_info"), \
-             patch("os.startfile"):
+        with (
+            patch("src.pages.receipts.receipt_form.template_exists", return_value=True),
+            patch("src.pages.receipts.receipt_form.create_backup"),
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date", return_value=None
+            ),
+            patch(
+                "src.pages.receipts.receipt_form.generate_receipt_excel",
+                return_value=("out.xlsx", []),
+            ),
+            patch("src.pages.receipts.receipt_form.add_receipt", return_value=1) as mock_add,
+            patch("src.pages.receipts.receipt_form.show_info"),
+            patch("os.startfile"),
+        ):
             self._form._do_generate()
 
         mock_add.assert_called_once()
@@ -276,15 +325,20 @@ class TestGenerateDuplicateGuard:
     def test_generate_edit_own_plate_date_allowed(self):
         self._form.editing_receipt_id = 7
 
-        with patch("src.pages.receipts.receipt_form.template_exists", return_value=True), \
-             patch("src.pages.receipts.receipt_form.create_backup"), \
-             patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=None) as mock_check, \
-             patch("src.pages.receipts.receipt_form.generate_receipt_excel",
-                   return_value=("out.xlsx", [])), \
-             patch("src.pages.receipts.receipt_form.update_receipt") as mock_update, \
-             patch("src.pages.receipts.receipt_form.show_info"), \
-             patch("os.startfile"):
+        with (
+            patch("src.pages.receipts.receipt_form.template_exists", return_value=True),
+            patch("src.pages.receipts.receipt_form.create_backup"),
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date", return_value=None
+            ) as mock_check,
+            patch(
+                "src.pages.receipts.receipt_form.generate_receipt_excel",
+                return_value=("out.xlsx", []),
+            ),
+            patch("src.pages.receipts.receipt_form.update_receipt") as mock_update,
+            patch("src.pages.receipts.receipt_form.show_info"),
+            patch("os.startfile"),
+        ):
             self._form._do_generate()
 
         mock_check.assert_called_once_with("B123ABC", "08.05.2026", exclude_id=7)
@@ -293,12 +347,16 @@ class TestGenerateDuplicateGuard:
     def test_generate_edit_other_duplicate_is_blocked(self):
         self._form.editing_receipt_id = 7
 
-        with patch("src.pages.receipts.receipt_form.template_exists", return_value=True), \
-             patch("src.pages.receipts.receipt_form.create_backup"), \
-             patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=_EXISTING_RECEIPT), \
-             patch("src.pages.receipts.receipt_form.update_receipt") as mock_update, \
-             patch("src.pages.receipts.receipt_form.show_warning") as mock_warn:
+        with (
+            patch("src.pages.receipts.receipt_form.template_exists", return_value=True),
+            patch("src.pages.receipts.receipt_form.create_backup"),
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
+                return_value=_EXISTING_RECEIPT,
+            ),
+            patch("src.pages.receipts.receipt_form.update_receipt") as mock_update,
+            patch("src.pages.receipts.receipt_form.show_warning") as mock_warn,
+        ):
             self._form._do_generate()
 
         mock_update.assert_not_called()
@@ -307,9 +365,11 @@ class TestGenerateDuplicateGuard:
     def test_generate_missing_template_blocks_before_duplicate_check(self):
         self._form.editing_receipt_id = None
 
-        with patch("src.pages.receipts.receipt_form.template_exists", return_value=False), \
-             patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date") as mock_check, \
-             patch("src.pages.receipts.receipt_form.show_warning"):
+        with (
+            patch("src.pages.receipts.receipt_form.template_exists", return_value=False),
+            patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date") as mock_check,
+            patch("src.pages.receipts.receipt_form.show_warning"),
+        ):
             self._form._do_generate()
 
         mock_check.assert_not_called()
@@ -318,10 +378,12 @@ class TestGenerateDuplicateGuard:
         self._form.receipt_data = dict(_RECEIPT_DATA, client_id=None)
         self._form.editing_receipt_id = None
 
-        with patch("src.pages.receipts.receipt_form.template_exists", return_value=True), \
-             patch("src.pages.receipts.receipt_form.create_backup"), \
-             patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date") as mock_check, \
-             patch("src.pages.receipts.receipt_form.show_warning"):
+        with (
+            patch("src.pages.receipts.receipt_form.template_exists", return_value=True),
+            patch("src.pages.receipts.receipt_form.create_backup"),
+            patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date") as mock_check,
+            patch("src.pages.receipts.receipt_form.show_warning"),
+        ):
             self._form._do_generate()
 
         mock_check.assert_not_called()
@@ -329,15 +391,20 @@ class TestGenerateDuplicateGuard:
     def test_generate_exclude_id_passed_correctly_when_editing(self):
         self._form.editing_receipt_id = 33
 
-        with patch("src.pages.receipts.receipt_form.template_exists", return_value=True), \
-             patch("src.pages.receipts.receipt_form.create_backup"), \
-             patch("src.pages.receipts.receipt_form.get_receipt_by_plate_and_date",
-                   return_value=None) as mock_check, \
-             patch("src.pages.receipts.receipt_form.generate_receipt_excel",
-                   return_value=("out.xlsx", [])), \
-             patch("src.pages.receipts.receipt_form.update_receipt"), \
-             patch("src.pages.receipts.receipt_form.show_info"), \
-             patch("os.startfile"):
+        with (
+            patch("src.pages.receipts.receipt_form.template_exists", return_value=True),
+            patch("src.pages.receipts.receipt_form.create_backup"),
+            patch(
+                "src.pages.receipts.receipt_form.get_receipt_by_plate_and_date", return_value=None
+            ) as mock_check,
+            patch(
+                "src.pages.receipts.receipt_form.generate_receipt_excel",
+                return_value=("out.xlsx", []),
+            ),
+            patch("src.pages.receipts.receipt_form.update_receipt"),
+            patch("src.pages.receipts.receipt_form.show_info"),
+            patch("os.startfile"),
+        ):
             self._form._do_generate()
 
         mock_check.assert_called_once_with("B123ABC", "08.05.2026", exclude_id=33)

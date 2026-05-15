@@ -23,12 +23,12 @@ def create_cars_table():
 def populate_cars_mock_data():
     """Populate cars with mock data."""
     db = DatabaseConnection()
-    
+
     # Check if data already exists
     existing = db.fetchone("SELECT COUNT(*) as count FROM cars")
     if existing and existing["count"] > 0:
         return  # Data already exists
-    
+
     # Insert mock cars
     cars = [
         (1, "ABC-1234", "WVWZZZ3CZWE123456", "Audi A4", 45000),
@@ -43,10 +43,10 @@ def populate_cars_mock_data():
         (9, "YZA-9900", "3VW447AU5JM123456", "Volkswagen Passat", 73000),
         (10, "BCD-2233", "TMBAH7NE8J0123456", "Skoda Superb", 44000),
     ]
-    
+
     db.executemany(
         "INSERT INTO cars (client_id, plate_number, vin, model, kilometers) VALUES (?, ?, ?, ?, ?)",
-        cars
+        cars,
     )
     db.commit()
 
@@ -66,13 +66,16 @@ def get_all_cars() -> list[dict]:
 def get_car_by_id(car_id: int) -> dict | None:
     """Get a car by ID."""
     db = DatabaseConnection()
-    return db.fetchone("""
+    return db.fetchone(
+        """
         SELECT c.id, c.client_id, c.plate_number, c.vin, c.model, c.kilometers,
                cl.first_name || ' ' || cl.last_name as client_name
         FROM cars c
         LEFT JOIN clients cl ON c.client_id = cl.id
         WHERE c.id = ?
-    """, (car_id,))
+    """,
+        (car_id,),
+    )
 
 
 def add_car(client_id: int, plate_number: str, vin: str, model: str, kilometers: int = 0) -> int:
@@ -80,18 +83,20 @@ def add_car(client_id: int, plate_number: str, vin: str, model: str, kilometers:
     db = DatabaseConnection()
     cursor = db.execute(
         "INSERT INTO cars (client_id, plate_number, vin, model, kilometers) VALUES (?, ?, ?, ?, ?)",
-        (client_id, plate_number, vin, model, kilometers)
+        (client_id, plate_number, vin, model, kilometers),
     )
     db.commit()
     return cursor.lastrowid
 
 
-def update_car(car_id: int, client_id: int, plate_number: str, vin: str, model: str, kilometers: int = 0):
+def update_car(
+    car_id: int, client_id: int, plate_number: str, vin: str, model: str, kilometers: int = 0
+):
     """Update an existing car."""
     db = DatabaseConnection()
     db.execute(
         "UPDATE cars SET client_id = ?, plate_number = ?, vin = ?, model = ?, kilometers = ? WHERE id = ?",
-        (client_id, plate_number, vin, model, kilometers, car_id)
+        (client_id, plate_number, vin, model, kilometers, car_id),
     )
     db.commit()
 
@@ -113,8 +118,5 @@ def get_cars_count() -> int:
 def update_car_kilometers(car_id: int, kilometers: int):
     """Update only the kilometers for a car."""
     db = DatabaseConnection()
-    db.execute(
-        "UPDATE cars SET kilometers = ? WHERE id = ?",
-        (kilometers, car_id)
-    )
+    db.execute("UPDATE cars SET kilometers = ? WHERE id = ?", (kilometers, car_id))
     db.commit()

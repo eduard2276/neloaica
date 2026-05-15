@@ -5,6 +5,7 @@ never interfere with each other and never touch the real neloaica.db.
 """
 
 import sqlite3
+
 import pytest
 
 from src.database.connection import DatabaseConnection

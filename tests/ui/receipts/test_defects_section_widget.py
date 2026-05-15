@@ -17,7 +17,6 @@ from unittest.mock import patch
 
 import pytest
 
-
 _DEFECTS = [
     {"id": 1, "defect_name": "Scratch"},
     {"id": 2, "defect_name": "Dent"},
@@ -29,12 +28,14 @@ _DEFECTS = [
 def widget(qapp):
     with patch("src.pages.receipts.defects_section.get_all_defects", return_value=list(_DEFECTS)):
         from src.pages.receipts.defects_section import DefectsSectionWidget
+
         return DefectsSectionWidget()
 
 
 # ===========================================================================
 # TestInitialState
 # ===========================================================================
+
 
 class TestInitialState:
     def test_empty(self, widget):
@@ -48,6 +49,7 @@ class TestInitialState:
 # ===========================================================================
 # TestAddRemove
 # ===========================================================================
+
 
 class TestAddRemove:
     def test_select_combo_adds_to_list(self, widget):
@@ -76,6 +78,7 @@ class TestAddRemove:
 # TestSignal
 # ===========================================================================
 
+
 class TestSignal:
     def test_emit_on_add(self, widget):
         captured = []
@@ -95,14 +98,19 @@ class TestSignal:
 # TestSetData
 # ===========================================================================
 
+
 class TestSetData:
     def test_round_trip(self, widget):
-        with patch("src.pages.receipts.defects_section.get_all_defects", return_value=list(_DEFECTS)):
+        with patch(
+            "src.pages.receipts.defects_section.get_all_defects", return_value=list(_DEFECTS)
+        ):
             widget.set_data([2, 3])
         assert sorted(widget.get_selected_defects()) == [2, 3]
 
     def test_set_data_ignores_unknown_ids(self, widget):
-        with patch("src.pages.receipts.defects_section.get_all_defects", return_value=list(_DEFECTS)):
+        with patch(
+            "src.pages.receipts.defects_section.get_all_defects", return_value=list(_DEFECTS)
+        ):
             widget.set_data([99999])
         assert widget.get_selected_defects() == []
 
@@ -111,16 +119,21 @@ class TestSetData:
 # TestLoadDataRestore
 # ===========================================================================
 
+
 class TestLoadDataRestore:
     def test_load_data_restore_state_preserves_selection(self, widget):
         widget.defect_combo.setCurrentIndex(1)  # Scratch
         before = widget.get_selected_defects()
-        with patch("src.pages.receipts.defects_section.get_all_defects", return_value=list(_DEFECTS)):
+        with patch(
+            "src.pages.receipts.defects_section.get_all_defects", return_value=list(_DEFECTS)
+        ):
             widget.load_data(restore_state=True)
         assert widget.get_selected_defects() == before
 
     def test_load_data_reset_clears_selection(self, widget):
         widget.defect_combo.setCurrentIndex(1)
-        with patch("src.pages.receipts.defects_section.get_all_defects", return_value=list(_DEFECTS)):
+        with patch(
+            "src.pages.receipts.defects_section.get_all_defects", return_value=list(_DEFECTS)
+        ):
             widget.load_data(restore_state=False)
         assert widget.get_selected_defects() == []
