@@ -171,7 +171,7 @@ def main():
     app = QApplication(sys.argv)
 
     app.setApplicationName("Neloaica")
-    app.setOrganizationName("Nokia")
+    app.setOrganizationName("Neloaica Project")
     app.setApplicationVersion(__version__)
 
     bootstrap()

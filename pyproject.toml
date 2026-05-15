@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
-    {name = "Nokia", email = "developer@nokia.com"}
+    {name = "Neloaica Project", email = "31226875+eduard2276@users.noreply.github.com"}
 ]
 dependencies = [
     # PySide6 6.11.x ships a regression that segfaults QMessageBox in

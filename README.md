@@ -447,7 +447,7 @@ table.setStyleSheet(theme.table())
 
 ```
 1. python -m src.main → main() called
-2. QApplication created (name="Neloaica", org="Nokia", version="1.0.0")
+2. QApplication created (name="Neloaica", org="Neloaica Project", version="1.0.0")
 3. init_database() → CREATE TABLE IF NOT EXISTS for all 6 tables
    └── Settings table auto-inserts default row (tva=21.0) if empty
 4. populate_mock_data() → inserts demo data into 5 tables (if empty)
