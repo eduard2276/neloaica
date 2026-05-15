@@ -23,6 +23,12 @@ Typical use::
         ...
 """
 
+from .apply import (
+    DEFAULT_EXECUTABLE_NAME,
+    HELPER_SCRIPT_NAME,
+    ApplyPlan,
+    UpdateApplier,
+)
 from .check import (
     DEFAULT_MANIFEST_URL,
 )
@@ -53,15 +59,19 @@ from .schema import (
 from .version import Version
 
 __all__ = [
+    "ApplyPlan",
     "DEFAULT_CHECK_TIMEOUT",
     "DEFAULT_CHUNK_SIZE",
     "DEFAULT_DOWNLOAD_TIMEOUT",
+    "DEFAULT_EXECUTABLE_NAME",
     "DEFAULT_MANIFEST_URL",
     "DEFAULT_USER_AGENT",
     "DownloadResult",
+    "HELPER_SCRIPT_NAME",
     "HttpOpener",
     "ManifestFetcher",
     "ProgressCallback",
+    "UpdateApplier",
     "UpdateApplyError",
     "UpdateChannel",
     "UpdateCheckError",
