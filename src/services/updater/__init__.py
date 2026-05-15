@@ -25,10 +25,22 @@ Typical use::
 
 from .check import (
     DEFAULT_MANIFEST_URL,
-    DEFAULT_TIMEOUT,
+)
+from .check import DEFAULT_TIMEOUT as DEFAULT_CHECK_TIMEOUT
+from .check import (
     DEFAULT_USER_AGENT,
     ManifestFetcher,
     UpdateChecker,
+)
+from .download import (
+    DEFAULT_CHUNK_SIZE,
+)
+from .download import DEFAULT_TIMEOUT as DEFAULT_DOWNLOAD_TIMEOUT
+from .download import (
+    DownloadResult,
+    HttpOpener,
+    ProgressCallback,
+    UpdateDownloader,
 )
 from .schema import (
     UpdateApplyError,
@@ -41,15 +53,21 @@ from .schema import (
 from .version import Version
 
 __all__ = [
+    "DEFAULT_CHECK_TIMEOUT",
+    "DEFAULT_CHUNK_SIZE",
+    "DEFAULT_DOWNLOAD_TIMEOUT",
     "DEFAULT_MANIFEST_URL",
-    "DEFAULT_TIMEOUT",
     "DEFAULT_USER_AGENT",
+    "DownloadResult",
+    "HttpOpener",
     "ManifestFetcher",
+    "ProgressCallback",
     "UpdateApplyError",
     "UpdateChannel",
     "UpdateCheckError",
     "UpdateChecker",
     "UpdateDownloadError",
+    "UpdateDownloader",
     "UpdateError",
     "UpdateInfo",
     "Version",

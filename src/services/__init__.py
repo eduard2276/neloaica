@@ -4,9 +4,12 @@ from .backup import create_backup, get_all_backups, restore_backup, should_creat
 from .excel_export import generate_receipt_excel, get_template_path, template_exists
 from .logging_setup import reset_logging, setup_logging
 from .updater import (
+    DownloadResult,
     UpdateChannel,
     UpdateChecker,
     UpdateCheckError,
+    UpdateDownloader,
+    UpdateDownloadError,
     UpdateError,
     UpdateInfo,
     Version,
@@ -22,9 +25,12 @@ __all__ = [
     "restore_backup",
     "setup_logging",
     "reset_logging",
+    "DownloadResult",
     "UpdateChannel",
     "UpdateChecker",
     "UpdateCheckError",
+    "UpdateDownloader",
+    "UpdateDownloadError",
     "UpdateError",
     "UpdateInfo",
     "Version",
