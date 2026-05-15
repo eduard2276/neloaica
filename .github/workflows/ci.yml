@@ -1,10 +1,9 @@
 name: CI
 
-# Runs on every push and pull request. The job is gated only on the test
-# suite; the linters (black / isort / flake8) run in informational mode for
-# now so the pipeline stays green while the existing codebase is brought into
-# style compliance in follow-up PRs. Once the repo is fully formatted, drop
-# `continue-on-error` from the lint job to make the gate strict.
+# Runs on every push and pull request. Both jobs are required to pass:
+#   * test  — the full pytest suite on Windows for Python 3.10/3.11/3.12.
+#   * lint  — black --check, isort --check, flake8 (max-line-length=120,
+#             config in `.flake8`).
 
 on:
   push:
@@ -72,11 +71,8 @@ jobs:
           retention-days: 14
 
   lint:
-    name: Lint (informational)
+    name: Lint
     runs-on: windows-latest
-    # Lint findings should not block merging until the repo is bulk-formatted.
-    # Removing this flag in a follow-up PR makes lint a hard gate.
-    continue-on-error: true
 
     env:
       PYTHONIOENCODING: utf-8
@@ -103,12 +99,12 @@ jobs:
 
       - name: Black --check
         run: python -m black --check src/ tests/
-        continue-on-error: true
 
       - name: isort --check
         run: python -m isort --check src/ tests/
-        continue-on-error: true
 
       - name: Flake8
-        run: python -m flake8 src/ tests/ --max-line-length=120 --extend-ignore=E203,W503 --count --statistics
-        continue-on-error: true
+        # Configuration lives in `.flake8` (max-line-length=120, ignores
+        # E203/W503 to match Black). Keep CLI flags in sync with that file
+        # if you change them.
+        run: python -m flake8 src/ tests/ --count --statistics

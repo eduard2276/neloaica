@@ -20,21 +20,21 @@ Covers:
 import pytest
 
 from src.database.models.employees import (
-    create_employees_table,
     add_employee,
+    create_employees_table,
+    delete_employee,
     get_all_employees,
     get_employee_by_id,
     get_employee_by_name,
+    get_employees_count,
     get_employees_for_dropdown,
     update_employee,
-    delete_employee,
-    get_employees_count,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixture
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def employees_table(db):
@@ -44,6 +44,7 @@ def employees_table(db):
 # ===========================================================================
 # TestCreateTable
 # ===========================================================================
+
 
 class TestCreateTable:
     def test_create_table_is_idempotent(self):
@@ -56,6 +57,7 @@ class TestCreateTable:
 # ===========================================================================
 # TestAdd
 # ===========================================================================
+
 
 class TestAdd:
     def test_add_one_returns_id(self):
@@ -100,6 +102,7 @@ class TestAdd:
 # ===========================================================================
 # TestGetByName
 # ===========================================================================
+
 
 class TestGetByName:
     def test_get_by_name_found(self):
@@ -155,6 +158,7 @@ class TestGetByName:
 # TestGetById
 # ===========================================================================
 
+
 class TestGetById:
     def test_get_by_id_found(self):
         emp_id = add_employee("Ion", "Popescu")
@@ -171,6 +175,7 @@ class TestGetById:
 # ===========================================================================
 # TestGetAll
 # ===========================================================================
+
 
 class TestGetAll:
     def test_get_all_empty(self):
@@ -213,6 +218,7 @@ class TestGetAll:
 # TestGetForDropdown
 # ===========================================================================
 
+
 class TestGetForDropdown:
     def test_dropdown_returns_combined_name(self):
         add_employee("Ion", "Popescu")
@@ -239,6 +245,7 @@ class TestGetForDropdown:
 # ===========================================================================
 # TestUpdate
 # ===========================================================================
+
 
 class TestUpdate:
     def test_update_to_new_unique_name(self):
@@ -288,6 +295,7 @@ class TestUpdate:
 # TestDelete
 # ===========================================================================
 
+
 class TestDelete:
     def test_delete_existing(self):
         emp_id = add_employee("Ion", "Popescu")
@@ -321,6 +329,7 @@ class TestDelete:
 # TestEdgeCases
 # ===========================================================================
 
+
 class TestEdgeCases:
     def test_name_stored_as_given(self):
         emp_id = add_employee("  Ion  ", "  Popescu  ")
@@ -348,9 +357,9 @@ class TestEdgeCases:
         assert result["last_name"] == "Иванов"
 
     def test_count_after_mixed_operations(self):
-        id1 = add_employee("A", "X")
+        add_employee("A", "X")
         id2 = add_employee("B", "Y")
-        id3 = add_employee("C", "Z")
+        add_employee("C", "Z")
         delete_employee(id2)
         add_employee("D", "W")
         assert get_employees_count() == 3

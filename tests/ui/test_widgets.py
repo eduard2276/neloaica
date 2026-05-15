@@ -11,13 +11,13 @@ widgets must:
 from unittest.mock import MagicMock
 
 import pytest
-from PySide6.QtCore import Qt, QPoint, QPointF
+from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
 
 from src.widgets.combo_box import (
     NoScrollComboBox,
-    NoScrollSpinBox,
     NoScrollDoubleSpinBox,
+    NoScrollSpinBox,
 )
 
 
@@ -38,6 +38,7 @@ def _wheel_event(delta: int = 120) -> QWheelEvent:
 # ===========================================================================
 # NoScrollComboBox
 # ===========================================================================
+
 
 class TestNoScrollComboBox:
     def test_wheel_event_is_ignored(self, qapp):
@@ -71,6 +72,7 @@ class TestNoScrollComboBox:
 # NoScrollSpinBox
 # ===========================================================================
 
+
 class TestNoScrollSpinBox:
     def test_wheel_event_is_ignored(self, qapp):
         sb = NoScrollSpinBox()
@@ -94,6 +96,7 @@ class TestNoScrollSpinBox:
 # ===========================================================================
 # NoScrollDoubleSpinBox
 # ===========================================================================
+
 
 class TestNoScrollDoubleSpinBox:
     def test_wheel_event_is_ignored(self, qapp):

@@ -1,44 +1,44 @@
 """Theme manager for centralized styling."""
 
-from .colors import THEMES, LIGHT_THEME
+from .colors import LIGHT_THEME, THEMES
 
 
 class ThemeManager:
     """Manages application theming with style generators."""
-    
+
     _instance = None
-    
+
     def __new__(cls):
         """Singleton pattern."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
-    
+
     def __init__(self):
         if self._initialized:
             return
         self._initialized = True
         self._current_theme = "light"
         self._colors = LIGHT_THEME.copy()
-    
+
     @property
     def current_theme(self) -> str:
         """Get current theme name."""
         return self._current_theme
-    
+
     def set_theme(self, theme_name: str):
         """Set the current theme."""
         if theme_name in THEMES:
             self._current_theme = theme_name
             self._colors = THEMES[theme_name].copy()
-    
+
     def get_color(self, color_name: str) -> str:
         """Get a color value by name."""
         return self._colors.get(color_name, "#000000")
-    
+
     # ==================== Component Styles ====================
-    
+
     def page_title(self) -> str:
         """Style for page titles."""
         return f"""
@@ -46,7 +46,7 @@ class ThemeManager:
             font-weight: bold;
             color: {self._colors['text_primary']};
         """
-    
+
     def combobox(self) -> str:
         """Style for comboboxes."""
         return f"""
@@ -77,7 +77,7 @@ class ThemeManager:
                 selection-color: {self._colors['text_light']};
             }}
         """
-    
+
     def line_edit(self) -> str:
         """Style for line edit inputs."""
         return f"""
@@ -97,7 +97,7 @@ class ThemeManager:
                 color: {self._colors['text_secondary']};
             }}
         """
-    
+
     def line_edit_dialog(self) -> str:
         """Style for line edit inputs in dialogs (thinner border)."""
         return f"""
@@ -112,7 +112,7 @@ class ThemeManager:
                 border-color: {self._colors['border_focus']};
             }}
         """
-    
+
     def search_input(self) -> str:
         """Style for search inputs."""
         return f"""
@@ -128,7 +128,7 @@ class ThemeManager:
                 border-color: {self._colors['border_focus']};
             }}
         """
-    
+
     def groupbox(self) -> str:
         """Style for group boxes."""
         return f"""
@@ -149,11 +149,11 @@ class ThemeManager:
                 background-color: {self._colors['bg_primary']};
             }}
         """
-    
+
     def groupbox_inactive(self) -> str:
         """Style for group boxes when section has no data."""
-        return f"""
-            QGroupBox {{
+        return """
+            QGroupBox {
                 font-size: 16px;
                 font-weight: bold;
                 color: #95a5a6;
@@ -162,13 +162,13 @@ class ThemeManager:
                 margin-top: 10px;
                 padding: 20px;
                 background-color: #f0f0f0;
-            }}
-            QGroupBox::title {{
+            }
+            QGroupBox::title {
                 subcontrol-origin: margin;
                 subcontrol-position: top left;
                 padding: 5px 10px;
                 background-color: #f0f0f0;
-            }}
+            }
         """
 
     def list_widget(self) -> str:
@@ -188,7 +188,7 @@ class ThemeManager:
                 background-color: transparent;
             }}
         """
-    
+
     def list_widget_with_items(self) -> str:
         """Style for list widgets with items (white background, grey border)."""
         return f"""
@@ -206,7 +206,7 @@ class ThemeManager:
                 background-color: transparent;
             }}
         """
-    
+
     def tab_widget(self) -> str:
         """Style for QTabWidget (browser-like tabs)."""
         return f"""
@@ -290,7 +290,7 @@ class ThemeManager:
                 font-size: 14px;
             }}
         """
-    
+
     def dialog(self) -> str:
         """Style for dialogs."""
         return f"""
@@ -302,18 +302,18 @@ class ThemeManager:
                 font-weight: bold;
             }}
         """
-    
+
     def button(self, variant: str = "primary") -> str:
         """Style for buttons. Variants: primary, success, danger, gray, cancel."""
         colors = {
-            "primary": (self._colors['primary'], self._colors['primary_hover']),
-            "success": (self._colors['success'], self._colors['success_hover']),
-            "danger": (self._colors['danger'], self._colors['danger_hover']),
-            "gray": (self._colors['gray'], self._colors['gray_hover']),
-            "cancel": (self._colors['gray'], self._colors['gray_hover']),
+            "primary": (self._colors["primary"], self._colors["primary_hover"]),
+            "success": (self._colors["success"], self._colors["success_hover"]),
+            "danger": (self._colors["danger"], self._colors["danger_hover"]),
+            "gray": (self._colors["gray"], self._colors["gray_hover"]),
+            "cancel": (self._colors["gray"], self._colors["gray_hover"]),
         }
         bg, hover = colors.get(variant, colors["primary"])
-        
+
         return f"""
             QPushButton {{
                 background-color: {bg};
@@ -328,7 +328,7 @@ class ThemeManager:
                 background-color: {hover};
             }}
         """
-    
+
     def button_icon(self, variant: str = "primary") -> str:
         """Style for icon buttons (emoji buttons in tables). Variants: edit, delete."""
         if variant == "delete":
@@ -357,7 +357,7 @@ class ThemeManager:
                     border-radius: 4px;
                 }}
             """
-    
+
     def button_add(self) -> str:
         """Style for add/plus buttons."""
         return f"""
@@ -376,7 +376,7 @@ class ThemeManager:
                 background-color: {self._colors['success_dark']};
             }}
         """
-    
+
     def button_remove(self) -> str:
         """Style for remove/delete buttons in lists."""
         return f"""
@@ -391,7 +391,7 @@ class ThemeManager:
                 background-color: {self._colors['danger_hover']};
             }}
         """
-    
+
     def message_box_confirm(self) -> str:
         """Style for confirmation message boxes - dark theme with white text."""
         return f"""
@@ -421,13 +421,13 @@ class ThemeManager:
                 background-color: {self._colors['primary_hover']};
             }}
         """
-    
+
     def sidebar(self) -> str:
         """Style for sidebar."""
         return f"""
             background-color: {self._colors['sidebar_bg']};
         """
-    
+
     def sidebar_title(self) -> str:
         """Style for sidebar title."""
         return f"""
@@ -437,7 +437,7 @@ class ThemeManager:
             font-weight: bold;
             padding: 20px;
         """
-    
+
     def sidebar_button(self) -> str:
         """Style for sidebar navigation buttons."""
         return f"""
@@ -457,29 +457,29 @@ class ThemeManager:
                 border-left: 4px solid {self._colors['primary']};
             }}
         """
-    
+
     def content_area(self) -> str:
         """Style for main content area."""
         return f"""
             background-color: {self._colors['bg_secondary']};
         """
-    
+
     def scroll_area(self) -> str:
         """Style for scroll areas."""
-        return f"""
-            QScrollArea {{
+        return """
+            QScrollArea {
                 border: none;
                 background-color: transparent;
-            }}
+            }
         """
-    
+
     def label_item(self) -> str:
         """Style for item labels in lists."""
         return f"""
             color: {self._colors['text_primary']};
             font-size: 14px;
         """
-    
+
     def form_label(self) -> str:
         """Style for form labels - white background with dark bold blue text."""
         return f"""
@@ -492,7 +492,7 @@ class ThemeManager:
                 border-radius: 4px;
             }}
         """
-    
+
     def line_edit_readonly(self) -> str:
         """Style for read-only line edit inputs with grey background."""
         return f"""
@@ -508,7 +508,7 @@ class ThemeManager:
                 border-color: {self._colors['border']};
             }}
         """
-    
+
     def calendar_dialog(self) -> str:
         """Style for calendar picker dialog."""
         return f"""
@@ -516,7 +516,7 @@ class ThemeManager:
                 background-color: {self._colors['bg_primary']};
             }}
         """
-    
+
     def calendar(self) -> str:
         """Style for calendar widget."""
         return """

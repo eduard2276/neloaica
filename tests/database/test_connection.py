@@ -9,14 +9,15 @@ Covers:
 """
 
 import sqlite3
+
 import pytest
 
 from src.database.connection import DatabaseConnection
 
-
 # ---------------------------------------------------------------------------
 # TestSingleton
 # ---------------------------------------------------------------------------
+
 
 class TestSingleton:
     def test_two_constructor_calls_return_same_instance(self, db):
@@ -30,9 +31,7 @@ class TestSingleton:
         assert a.connection is b.connection
 
     def test_fixture_resets_between_tests_a(self, db):
-        DatabaseConnection().execute(
-            "CREATE TABLE t_a (id INTEGER PRIMARY KEY)"
-        )
+        DatabaseConnection().execute("CREATE TABLE t_a (id INTEGER PRIMARY KEY)")
         DatabaseConnection().commit()
         rows = DatabaseConnection().fetchall(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='t_a'"
@@ -49,6 +48,7 @@ class TestSingleton:
 # ---------------------------------------------------------------------------
 # TestRowFactory
 # ---------------------------------------------------------------------------
+
 
 class TestRowFactory:
     @pytest.fixture(autouse=True)
@@ -71,14 +71,13 @@ class TestRowFactory:
         assert row["age"] == 30
 
     def test_fetchone_missing_returns_none(self):
-        assert DatabaseConnection().fetchone(
-            "SELECT id, name FROM t WHERE name = ?", ("ghost",)
-        ) is None
+        assert (
+            DatabaseConnection().fetchone("SELECT id, name FROM t WHERE name = ?", ("ghost",))
+            is None
+        )
 
     def test_fetchall_returns_list_of_dicts(self):
-        rows = DatabaseConnection().fetchall(
-            "SELECT name, age FROM t ORDER BY name"
-        )
+        rows = DatabaseConnection().fetchall("SELECT name, age FROM t ORDER BY name")
         assert rows == [
             {"name": "alice", "age": 30},
             {"name": "bob", "age": 40},
@@ -92,6 +91,7 @@ class TestRowFactory:
 # TestForeignKeys
 # ---------------------------------------------------------------------------
 
+
 class TestForeignKeys:
     def test_pragma_is_on(self, db):
         row = DatabaseConnection().fetchone("PRAGMA foreign_keys")
@@ -100,9 +100,7 @@ class TestForeignKeys:
         assert row["foreign_keys"] == 1
 
     def test_foreign_key_constraint_is_enforced(self, db):
-        DatabaseConnection().execute(
-            "CREATE TABLE parent (id INTEGER PRIMARY KEY)"
-        )
+        DatabaseConnection().execute("CREATE TABLE parent (id INTEGER PRIMARY KEY)")
         DatabaseConnection().execute(
             "CREATE TABLE child ("
             "  id INTEGER PRIMARY KEY,"
@@ -113,14 +111,10 @@ class TestForeignKeys:
         DatabaseConnection().commit()
 
         with pytest.raises(sqlite3.IntegrityError):
-            DatabaseConnection().execute(
-                "INSERT INTO child (parent_id) VALUES (?)", (999,)
-            )
+            DatabaseConnection().execute("INSERT INTO child (parent_id) VALUES (?)", (999,))
 
     def test_on_delete_cascade(self, db):
-        DatabaseConnection().execute(
-            "CREATE TABLE parent (id INTEGER PRIMARY KEY)"
-        )
+        DatabaseConnection().execute("CREATE TABLE parent (id INTEGER PRIMARY KEY)")
         DatabaseConnection().execute(
             "CREATE TABLE child ("
             "  id INTEGER PRIMARY KEY,"
@@ -144,18 +138,15 @@ class TestForeignKeys:
 # TestExecute
 # ---------------------------------------------------------------------------
 
+
 class TestExecute:
     @pytest.fixture(autouse=True)
     def _table(self, db):
-        DatabaseConnection().execute(
-            "CREATE TABLE log (id INTEGER PRIMARY KEY, msg TEXT)"
-        )
+        DatabaseConnection().execute("CREATE TABLE log (id INTEGER PRIMARY KEY, msg TEXT)")
         DatabaseConnection().commit()
 
     def test_execute_returns_cursor(self):
-        cur = DatabaseConnection().execute(
-            "INSERT INTO log (msg) VALUES (?)", ("hi",)
-        )
+        cur = DatabaseConnection().execute("INSERT INTO log (msg) VALUES (?)", ("hi",))
         DatabaseConnection().commit()
         assert cur.lastrowid == 1
 
@@ -178,6 +169,7 @@ class TestExecute:
 # ---------------------------------------------------------------------------
 # TestClose
 # ---------------------------------------------------------------------------
+
 
 class TestClose:
     def test_close_resets_connection_attribute(self, db):

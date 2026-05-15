@@ -14,20 +14,20 @@ Covers:
 import pytest
 
 from src.database.models.labor import (
-    create_labor_table,
     add_labor,
+    create_labor_table,
+    delete_labor,
     get_all_labor,
     get_labor_by_id,
     get_labor_by_name,
-    update_labor,
-    delete_labor,
     get_labor_count,
+    update_labor,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixture: fresh table for every test
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def labor_table(db):
@@ -38,6 +38,7 @@ def labor_table(db):
 # ===========================================================================
 # TestCreateTable
 # ===========================================================================
+
 
 class TestCreateTable:
     def test_create_table_is_idempotent(self):
@@ -51,6 +52,7 @@ class TestCreateTable:
 # ===========================================================================
 # TestAdd
 # ===========================================================================
+
 
 class TestAdd:
     def test_add_one_returns_id(self):
@@ -86,6 +88,7 @@ class TestAdd:
 # ===========================================================================
 # TestGetByName
 # ===========================================================================
+
 
 class TestGetByName:
     def test_get_by_name_found(self):
@@ -123,6 +126,7 @@ class TestGetByName:
 # TestGetById
 # ===========================================================================
 
+
 class TestGetById:
     def test_get_by_id_found(self):
         labor_id = add_labor("Wheel Alignment")
@@ -139,6 +143,7 @@ class TestGetById:
 # ===========================================================================
 # TestGetAll
 # ===========================================================================
+
 
 class TestGetAll:
     def test_get_all_empty(self):
@@ -169,6 +174,7 @@ class TestGetAll:
 # ===========================================================================
 # TestUpdate
 # ===========================================================================
+
 
 class TestUpdate:
     def test_update_to_new_unique_name(self):
@@ -202,6 +208,7 @@ class TestUpdate:
 # ===========================================================================
 # TestDelete
 # ===========================================================================
+
 
 class TestDelete:
     def test_delete_existing(self):
@@ -237,6 +244,7 @@ class TestDelete:
 # TestEdgeCases
 # ===========================================================================
 
+
 class TestEdgeCases:
     def test_name_with_leading_trailing_spaces_is_stored_as_given(self):
         """The model stores exactly what it receives; trimming is the page's job."""
@@ -263,8 +271,8 @@ class TestEdgeCases:
         assert result["service_name"] == name
 
     def test_get_labor_count_after_multiple_operations(self):
-        id1 = add_labor("A")
+        add_labor("A")
         id2 = add_labor("B")
-        id3 = add_labor("C")
+        add_labor("C")
         delete_labor(id2)
         assert get_labor_count() == 2

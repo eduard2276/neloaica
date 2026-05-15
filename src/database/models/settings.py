@@ -14,13 +14,13 @@ def create_settings_table():
         )
     """)
     db.commit()
-    
+
     # Insert default settings if not exists
     existing = db.fetchone("SELECT COUNT(*) as count FROM settings WHERE id = 1")
     if existing and existing["count"] == 0:
         db.execute("INSERT INTO settings (id, tva, receipt_number) VALUES (1, 21.0, 1)")
         db.commit()
-    
+
     # Migrate existing databases that lack the receipt_number column
     try:
         db.execute("ALTER TABLE settings ADD COLUMN receipt_number INTEGER NOT NULL DEFAULT 1")
@@ -40,10 +40,7 @@ def get_tva() -> float:
 def update_tva(tva_value: float):
     """Update the TVA value in settings."""
     db = DatabaseConnection()
-    db.execute(
-        "UPDATE settings SET tva = ? WHERE id = 1",
-        (tva_value,)
-    )
+    db.execute("UPDATE settings SET tva = ? WHERE id = 1", (tva_value,))
     db.commit()
 
 
@@ -57,10 +54,7 @@ def get_receipt_number() -> int:
 def update_receipt_number(receipt_number: int):
     """Update the receipt number in settings."""
     db = DatabaseConnection()
-    db.execute(
-        "UPDATE settings SET receipt_number = ? WHERE id = 1",
-        (receipt_number,)
-    )
+    db.execute("UPDATE settings SET receipt_number = ? WHERE id = 1", (receipt_number,))
     db.commit()
 
 

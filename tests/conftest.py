@@ -14,7 +14,7 @@ between tests.
 """
 
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 
 @pytest.fixture(scope="session")
@@ -24,3 +24,19 @@ def qapp():
     if app is None:
         app = QApplication([])
     yield app
+
+
+@pytest.fixture(autouse=True)
+def _silence_qmessageboxes(monkeypatch):
+    """Stop any test from showing a real ``QMessageBox``.
+
+    Some PySide6 builds (notably 6.10.3+ on the GitHub Actions Windows runner
+    with ``QT_QPA_PLATFORM=offscreen``) segfault inside ``QMessageBox.exec``
+    when no real desktop is attached. Tests should already mock the
+    ``show_warning`` / ``show_info`` / ``show_critical`` helpers when they
+    expect a dialog, but a forgotten mock — for example a code path that
+    falls into a ``show_critical`` branch unexpectedly — can crash the whole
+    pytest worker. Replace ``exec`` with a no-op so an unmocked dialog
+    silently returns ``0`` instead of taking down the process.
+    """
+    monkeypatch.setattr(QMessageBox, "exec", lambda self, *a, **kw: 0)

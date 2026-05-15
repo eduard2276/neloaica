@@ -13,16 +13,36 @@ from unittest.mock import patch
 
 import pytest
 
-
 _CLIENTS = [
     {"id": 1, "first_name": "Alice", "last_name": "Apple", "address": "1 Main"},
-    {"id": 2, "first_name": "Bob",   "last_name": "Banana", "address": "2 Elm"},
+    {"id": 2, "first_name": "Bob", "last_name": "Banana", "address": "2 Elm"},
 ]
 
 _CARS = [
-    {"id": 11, "client_id": 1, "plate_number": "B-1", "vin": "A" * 17, "model": "Audi", "kilometers": 1000},
-    {"id": 12, "client_id": 1, "plate_number": "B-2", "vin": "B" * 17, "model": "BMW",  "kilometers": 2000},
-    {"id": 21, "client_id": 2, "plate_number": "C-1", "vin": "C" * 17, "model": "Volvo", "kilometers": 3000},
+    {
+        "id": 11,
+        "client_id": 1,
+        "plate_number": "B-1",
+        "vin": "A" * 17,
+        "model": "Audi",
+        "kilometers": 1000,
+    },
+    {
+        "id": 12,
+        "client_id": 1,
+        "plate_number": "B-2",
+        "vin": "B" * 17,
+        "model": "BMW",
+        "kilometers": 2000,
+    },
+    {
+        "id": 21,
+        "client_id": 2,
+        "plate_number": "C-1",
+        "vin": "C" * 17,
+        "model": "Volvo",
+        "kilometers": 3000,
+    },
 ]
 
 _EMPLOYEES = [
@@ -33,16 +53,20 @@ _EMPLOYEES = [
 
 @pytest.fixture
 def widget(qapp):
-    with patch("src.pages.receipts.receipt_info.get_all_clients", return_value=list(_CLIENTS)), \
-         patch("src.pages.receipts.receipt_info.get_all_cars",    return_value=list(_CARS)), \
-         patch("src.pages.receipts.receipt_info.get_all_employees", return_value=list(_EMPLOYEES)):
+    with (
+        patch("src.pages.receipts.receipt_info.get_all_clients", return_value=list(_CLIENTS)),
+        patch("src.pages.receipts.receipt_info.get_all_cars", return_value=list(_CARS)),
+        patch("src.pages.receipts.receipt_info.get_all_employees", return_value=list(_EMPLOYEES)),
+    ):
         from src.pages.receipts.receipt_info import ReceiptInfoWidget
+
         return ReceiptInfoWidget()
 
 
 # ===========================================================================
 # Initial state
 # ===========================================================================
+
 
 class TestInitialState:
     def test_clients_loaded(self, widget):
@@ -66,6 +90,7 @@ class TestInitialState:
 # Client → car cascade
 # ===========================================================================
 
+
 class TestCascade:
     def test_selecting_client_enables_car_combo_and_filters(self, widget):
         widget.client_combo.setCurrentIndex(1)  # Alice
@@ -80,7 +105,7 @@ class TestCascade:
 
     def test_selecting_car_fills_details(self, widget):
         widget.client_combo.setCurrentIndex(1)  # Alice
-        widget.car_combo.setCurrentIndex(1)     # 1st of Alice's cars
+        widget.car_combo.setCurrentIndex(1)  # 1st of Alice's cars
         assert widget.plate_input.text() != ""
         assert widget.vin_input.text() != ""
         assert widget.model_input.text() != ""
@@ -99,6 +124,7 @@ class TestCascade:
 # ===========================================================================
 # Kilometers formatting
 # ===========================================================================
+
 
 class TestKilometers:
     def test_format(self, widget):
@@ -124,6 +150,7 @@ class TestKilometers:
 # data_changed signal
 # ===========================================================================
 
+
 class TestSignal:
     def test_data_changed_payload_contains_keys(self, widget):
         captured = []
@@ -132,9 +159,16 @@ class TestSignal:
         assert captured
         last = captured[-1]
         for key in [
-            "client_id", "client_name", "client_address", "car_id",
-            "plate_number", "vin", "model", "kilometers",
-            "executant_name", "date",
+            "client_id",
+            "client_name",
+            "client_address",
+            "car_id",
+            "plate_number",
+            "vin",
+            "model",
+            "kilometers",
+            "executant_name",
+            "date",
         ]:
             assert key in last
 
@@ -148,6 +182,7 @@ class TestSignal:
 # ===========================================================================
 # get_data / set_data
 # ===========================================================================
+
 
 class TestGetSetData:
     def test_get_data_empty(self, widget):
@@ -167,16 +202,22 @@ class TestGetSetData:
         assert data["executant_name"] == "Mecanic Two"
 
     def test_set_data_round_trip(self, widget):
-        with patch("src.pages.receipts.receipt_info.get_all_clients", return_value=list(_CLIENTS)), \
-             patch("src.pages.receipts.receipt_info.get_all_cars",    return_value=list(_CARS)), \
-             patch("src.pages.receipts.receipt_info.get_all_employees", return_value=list(_EMPLOYEES)):
-            widget.set_data({
-                "client_id": 1,
-                "car_id": 11,
-                "kilometers": "1500",
-                "executant_name": "Mecanic One",
-                "date": "08.05.2026",
-            })
+        with (
+            patch("src.pages.receipts.receipt_info.get_all_clients", return_value=list(_CLIENTS)),
+            patch("src.pages.receipts.receipt_info.get_all_cars", return_value=list(_CARS)),
+            patch(
+                "src.pages.receipts.receipt_info.get_all_employees", return_value=list(_EMPLOYEES)
+            ),
+        ):
+            widget.set_data(
+                {
+                    "client_id": 1,
+                    "car_id": 11,
+                    "kilometers": "1500",
+                    "executant_name": "Mecanic One",
+                    "date": "08.05.2026",
+                }
+            )
         data = widget.get_data()
         assert data["client_id"] == 1
         assert data["car_id"] == 11
@@ -184,9 +225,13 @@ class TestGetSetData:
         assert data["date"] == "08.05.2026"
 
     def test_set_data_invalid_date_keeps_default(self, widget):
-        with patch("src.pages.receipts.receipt_info.get_all_clients", return_value=list(_CLIENTS)), \
-             patch("src.pages.receipts.receipt_info.get_all_cars",    return_value=list(_CARS)), \
-             patch("src.pages.receipts.receipt_info.get_all_employees", return_value=list(_EMPLOYEES)):
+        with (
+            patch("src.pages.receipts.receipt_info.get_all_clients", return_value=list(_CLIENTS)),
+            patch("src.pages.receipts.receipt_info.get_all_cars", return_value=list(_CARS)),
+            patch(
+                "src.pages.receipts.receipt_info.get_all_employees", return_value=list(_EMPLOYEES)
+            ),
+        ):
             widget.set_data({"client_id": 1, "date": "not-a-date"})
         data = widget.get_data()
         # date stays in dd.MM.yyyy format (current date)

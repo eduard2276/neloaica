@@ -1,0 +1,19 @@
+[flake8]
+# Black is configured at line-length 100 (see [tool.black] in pyproject.toml).
+# Flake8 is given a slightly higher ceiling (120) because Black does not break
+# long string literals and a handful of inline Qt stylesheets / Excel labels
+# legitimately need more room. E203 / W503 conflict with Black's slicing and
+# operator wrapping conventions, so they are ignored.
+max-line-length = 120
+extend-ignore = E203, W503
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist,
+    venv,
+    .venv,
+    .pytest_cache,
+    *.egg-info
+per-file-ignores =
+    __init__.py: F401

@@ -18,12 +18,12 @@ def create_defects_table():
 def populate_defects_mock_data():
     """Populate defects with mock data."""
     db = DatabaseConnection()
-    
+
     # Check if data already exists
     existing = db.fetchone("SELECT COUNT(*) as count FROM defects")
     if existing and existing["count"] > 0:
         return  # Data already exists
-    
+
     # Insert mock defects
     defects_list = [
         ("Engine misfiring",),
@@ -42,11 +42,8 @@ def populate_defects_mock_data():
         ("Headlight not working",),
         ("Dashboard warning light",),
     ]
-    
-    db.executemany(
-        "INSERT INTO defects (defect_name) VALUES (?)",
-        defects_list
-    )
+
+    db.executemany("INSERT INTO defects (defect_name) VALUES (?)", defects_list)
     db.commit()
 
 
@@ -65,10 +62,7 @@ def get_defect_by_id(defect_id: int) -> dict | None:
 def add_defect(defect_name: str) -> int:
     """Add a new defect and return the ID."""
     db = DatabaseConnection()
-    cursor = db.execute(
-        "INSERT INTO defects (defect_name) VALUES (?)",
-        (defect_name,)
-    )
+    cursor = db.execute("INSERT INTO defects (defect_name) VALUES (?)", (defect_name,))
     db.commit()
     return cursor.lastrowid
 
@@ -85,10 +79,7 @@ def get_defect_by_name(defect_name: str) -> dict | None:
 def update_defect(defect_id: int, defect_name: str):
     """Update an existing defect."""
     db = DatabaseConnection()
-    db.execute(
-        "UPDATE defects SET defect_name = ? WHERE id = ?",
-        (defect_name, defect_id)
-    )
+    db.execute("UPDATE defects SET defect_name = ? WHERE id = ?", (defect_name, defect_id))
     db.commit()
 
 

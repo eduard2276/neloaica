@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 from PySide6.QtWidgets import QMessageBox, QWidget
 
-from src.utils import show_warning, show_info, show_critical
+from src.utils import show_critical, show_info, show_warning
 
 
 @pytest.fixture
@@ -25,7 +25,6 @@ def parent(qapp):
 def _capture(func, parent):
     """Run `func`, capturing the QMessageBox instance that was shown."""
     captured = {}
-    real_exec = QMessageBox.exec
 
     def fake_exec(self_):
         captured["msg"] = self_

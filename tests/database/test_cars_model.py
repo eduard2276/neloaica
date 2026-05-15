@@ -14,25 +14,26 @@ Covers:
 """
 
 import sqlite3
+
 import pytest
 
-from src.database.models.clients import create_clients_table, add_client, delete_client
 from src.database.models.cars import (
-    create_cars_table,
     add_car,
+    create_cars_table,
+    delete_car,
     get_all_cars,
     get_car_by_id,
-    update_car,
-    delete_car,
     get_cars_count,
-    update_car_kilometers,
     populate_cars_mock_data,
+    update_car,
+    update_car_kilometers,
 )
-
+from src.database.models.clients import add_client, create_clients_table, delete_client
 
 # ---------------------------------------------------------------------------
 # Fresh tables for each test
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def car_tables(db):
@@ -49,6 +50,7 @@ def client_id():
 # TestCreateTable
 # ===========================================================================
 
+
 class TestCreateTable:
     def test_idempotent(self):
         create_cars_table()  # second call must not raise
@@ -60,6 +62,7 @@ class TestCreateTable:
 # ===========================================================================
 # TestAdd
 # ===========================================================================
+
 
 class TestAdd:
     def test_add_returns_id(self, client_id):
@@ -76,7 +79,12 @@ class TestAdd:
         assert row["client_id"] == client_id
 
     def test_default_kilometers_is_zero(self, client_id):
-        cid = add_car(client_id, "B-1", "V" * 17, "Model", )
+        cid = add_car(
+            client_id,
+            "B-1",
+            "V" * 17,
+            "Model",
+        )
         assert get_car_by_id(cid)["kilometers"] == 0
 
     def test_count_after_add(self, client_id):
@@ -89,6 +97,7 @@ class TestAdd:
 # TestUniqueVin
 # ===========================================================================
 
+
 class TestUniqueVin:
     def test_duplicate_vin_raises(self, client_id):
         vin = "DUPLICATEVIN12345"
@@ -100,6 +109,7 @@ class TestUniqueVin:
 # ===========================================================================
 # TestGetById
 # ===========================================================================
+
 
 class TestGetById:
     def test_includes_client_name(self, client_id):
@@ -114,6 +124,7 @@ class TestGetById:
 # ===========================================================================
 # TestGetAll
 # ===========================================================================
+
 
 class TestGetAll:
     def test_empty(self):
@@ -135,6 +146,7 @@ class TestGetAll:
 # ===========================================================================
 # TestUpdate
 # ===========================================================================
+
 
 class TestUpdate:
     def test_update_all_fields(self, client_id):
@@ -163,6 +175,7 @@ class TestUpdate:
 # TestDelete
 # ===========================================================================
 
+
 class TestDelete:
     def test_delete_existing(self, client_id):
         cid = add_car(client_id, "P", "V" * 17, "M", 1)
@@ -178,6 +191,7 @@ class TestDelete:
 # TestForeignKeyCascade
 # ===========================================================================
 
+
 class TestForeignKeyCascade:
     def test_deleting_client_deletes_their_cars(self):
         cid = add_client("Cascade", "Test", "")
@@ -191,9 +205,11 @@ class TestForeignKeyCascade:
 # TestMockData
 # ===========================================================================
 
+
 class TestMockData:
     def test_seed_idempotent(self):
         from src.database.models.clients import populate_clients_mock_data
+
         populate_clients_mock_data()
         populate_cars_mock_data()
         n1 = get_cars_count()

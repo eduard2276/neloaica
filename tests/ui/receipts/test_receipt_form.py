@@ -10,15 +10,16 @@ BUG  Labor list not refreshed in open receipt form
      latest DB data.
 """
 
-import pytest
 from unittest.mock import patch
-from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QShowEvent
 
+import pytest
+from PySide6.QtGui import QShowEvent
+from PySide6.QtWidgets import QApplication
 
 # ---------------------------------------------------------------------------
 # Shared Qt application fixture
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="session")
 def qapp():
@@ -41,22 +42,22 @@ NEW_LABOR_SERVICE = {"id": 99, "service_name": "Serviciu nou adaugat"}
 
 EXTENDED_LABOR = INITIAL_LABOR + [NEW_LABOR_SERVICE]
 
-MOCK_CLIENTS   = []
-MOCK_CARS      = []
+MOCK_CLIENTS = []
+MOCK_CARS = []
 MOCK_EMPLOYEES = []
-MOCK_DEFECTS   = []
-MOCK_PARTS     = []
+MOCK_DEFECTS = []
+MOCK_PARTS = []
 
 
 def _all_patches(labor_list):
     """Return a list of patch() context managers needed to create ReceiptFormPage."""
     return [
-        patch("src.pages.receipts.receipt_info.get_all_clients",   return_value=MOCK_CLIENTS),
-        patch("src.pages.receipts.receipt_info.get_all_cars",       return_value=MOCK_CARS),
-        patch("src.pages.receipts.receipt_info.get_all_employees",  return_value=MOCK_EMPLOYEES),
+        patch("src.pages.receipts.receipt_info.get_all_clients", return_value=MOCK_CLIENTS),
+        patch("src.pages.receipts.receipt_info.get_all_cars", return_value=MOCK_CARS),
+        patch("src.pages.receipts.receipt_info.get_all_employees", return_value=MOCK_EMPLOYEES),
         patch("src.pages.receipts.defects_section.get_all_defects", return_value=MOCK_DEFECTS),
-        patch("src.pages.receipts.parts_section.get_all_parts",     return_value=MOCK_PARTS),
-        patch("src.pages.receipts.labor_section.get_all_labor",     return_value=labor_list),
+        patch("src.pages.receipts.parts_section.get_all_parts", return_value=MOCK_PARTS),
+        patch("src.pages.receipts.labor_section.get_all_labor", return_value=labor_list),
         patch("src.pages.receipts.billable_parts_section.get_all_parts", return_value=MOCK_PARTS),
     ]
 
@@ -64,6 +65,7 @@ def _all_patches(labor_list):
 # ===========================================================================
 # Tests
 # ===========================================================================
+
 
 class TestLaborRefresh:
 
@@ -74,23 +76,19 @@ class TestLaborRefresh:
         """
         from src.pages.receipts.labor_section import LaborSectionWidget
 
-        with patch("src.pages.receipts.labor_section.get_all_labor",
-                   return_value=INITIAL_LABOR):
+        with patch("src.pages.receipts.labor_section.get_all_labor", return_value=INITIAL_LABOR):
             widget = LaborSectionWidget()
 
-        ids_before = [widget.labor_combo.itemData(i)
-                      for i in range(widget.labor_combo.count())]
+        ids_before = [widget.labor_combo.itemData(i) for i in range(widget.labor_combo.count())]
         assert NEW_LABOR_SERVICE["id"] not in ids_before
 
-        with patch("src.pages.receipts.labor_section.get_all_labor",
-                   return_value=EXTENDED_LABOR):
+        with patch("src.pages.receipts.labor_section.get_all_labor", return_value=EXTENDED_LABOR):
             widget.load_data(restore_state=True)
 
-        ids_after = [widget.labor_combo.itemData(i)
-                     for i in range(widget.labor_combo.count())]
-        assert NEW_LABOR_SERVICE["id"] in ids_after, (
-            "After load_data(restore_state=True) the new service must appear in the combo"
-        )
+        ids_after = [widget.labor_combo.itemData(i) for i in range(widget.labor_combo.count())]
+        assert (
+            NEW_LABOR_SERVICE["id"] in ids_after
+        ), "After load_data(restore_state=True) the new service must appear in the combo"
 
     def test_receipt_form_shows_new_labor_after_being_reshown(self, qapp):
         """
@@ -106,7 +104,8 @@ class TestLaborRefresh:
         from src.pages.receipts.receipt_form import ReceiptFormPage
 
         patches = _all_patches(INITIAL_LABOR)
-        mocks = [p.__enter__() for p in patches]
+        for p in patches:
+            p.__enter__()
         try:
             form = ReceiptFormPage()
             form.load_for_new()
@@ -114,18 +113,21 @@ class TestLaborRefresh:
             for p in patches:
                 p.__exit__(None, None, None)
 
-        ids_before = [form.labor_widget.labor_combo.itemData(i)
-                      for i in range(form.labor_widget.labor_combo.count())]
-        assert NEW_LABOR_SERVICE["id"] not in ids_before, (
-            "Precondition: new service must not be in combo before tab-switch"
-        )
+        ids_before = [
+            form.labor_widget.labor_combo.itemData(i)
+            for i in range(form.labor_widget.labor_combo.count())
+        ]
+        assert (
+            NEW_LABOR_SERVICE["id"] not in ids_before
+        ), "Precondition: new service must not be in combo before tab-switch"
 
-        with patch("src.pages.receipts.labor_section.get_all_labor",
-                   return_value=EXTENDED_LABOR):
+        with patch("src.pages.receipts.labor_section.get_all_labor", return_value=EXTENDED_LABOR):
             form.showEvent(QShowEvent())
 
-        ids_after = [form.labor_widget.labor_combo.itemData(i)
-                     for i in range(form.labor_widget.labor_combo.count())]
-        assert NEW_LABOR_SERVICE["id"] in ids_after, (
-            "After showEvent, the new labor service must appear in the combo."
-        )
+        ids_after = [
+            form.labor_widget.labor_combo.itemData(i)
+            for i in range(form.labor_widget.labor_combo.count())
+        ]
+        assert (
+            NEW_LABOR_SERVICE["id"] in ids_after
+        ), "After showEvent, the new labor service must appear in the combo."
