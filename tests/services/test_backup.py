@@ -14,6 +14,7 @@ patching `BACKUPS_DIR` and `get_database_path` so we never touch the
 real `neloaica.db` or `backups/`.
 """
 
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -235,3 +236,88 @@ class TestRoundTrip:
         # Even with cleanup triggered after each create, the max must hold
         rows = backup_mod.get_all_backups()
         assert len(rows) <= backup_mod.MAX_BACKUPS
+
+
+# ===========================================================================
+# TestBackupsLocation
+# ===========================================================================
+
+
+class TestBackupsLocation:
+    """The default ``BACKUPS_DIR`` must come from ``src.paths.get_backups_dir``.
+
+    These tests exercise the module-level constant rather than the
+    per-test ``tmp_dirs`` override so we know the production wiring is
+    correct.
+    """
+
+    def test_default_backups_dir_matches_paths_module(self):
+        from src.paths import get_backups_dir
+
+        # ``BACKUPS_DIR`` is captured at module import time. It must equal
+        # what ``get_backups_dir`` would return for the same dev/frozen
+        # context — i.e. project root in dev.
+        assert backup_mod.BACKUPS_DIR == get_backups_dir()
+
+    def test_default_backups_dir_lives_under_user_data_dir(self):
+        from src.paths import get_user_data_dir
+
+        assert backup_mod.BACKUPS_DIR.parent == get_user_data_dir()
+        assert backup_mod.BACKUPS_DIR.name == "backups"
+
+
+# ===========================================================================
+# TestLoggingInsteadOfPrint
+# ===========================================================================
+
+
+class TestLoggingInsteadOfPrint:
+    """Status messages must flow through ``logging`` so they end up in the
+    rotating log file instead of stdout."""
+
+    def test_create_backup_failure_emits_log(self, tmp_dirs, caplog):
+        with caplog.at_level(logging.ERROR, logger="src.services.backup"):
+            with patch("src.services.backup.shutil.copy2", side_effect=OSError("disk full")):
+                _, ok = backup_mod.create_backup("manual")
+        assert ok is False
+        assert any("Failed to create backup" in r.message for r in caplog.records)
+
+    def test_cleanup_logs_when_removing_old_files(self, tmp_dirs, caplog):
+        backup_mod.ensure_backups_dir()
+        # Build MAX_BACKUPS+2 files with descending mtimes so cleanup deletes 2.
+        import os
+
+        now = datetime.now().timestamp()
+        for i in range(backup_mod.MAX_BACKUPS + 2):
+            f = tmp_dirs["backups_dir"] / f"neloaica_backup_manual_{i:02d}.db"
+            f.write_bytes(b"x")
+            ts = now - i * 60
+            os.utime(f, (ts, ts))
+
+        with caplog.at_level(logging.INFO, logger="src.services.backup"):
+            backup_mod.cleanup_old_backups()
+        removed = [r for r in caplog.records if "Removed old backup" in r.message]
+        assert len(removed) == 2
+
+    def test_restore_logs_success(self, tmp_dirs, caplog):
+        backup_mod.ensure_backups_dir()
+        backup_file = tmp_dirs["backups_dir"] / "neloaica_backup_manual_x.db"
+        backup_file.write_bytes(b"NEW")
+        tmp_dirs["db_path"].write_bytes(b"OLD")
+
+        with caplog.at_level(logging.INFO, logger="src.services.backup"):
+            ok = backup_mod.restore_backup(str(backup_file))
+        assert ok is True
+        messages = [r.message for r in caplog.records]
+        assert any("Database restored from" in m for m in messages)
+        assert any("Safety backup created" in m for m in messages)
+
+    def test_no_print_calls_in_module_source(self):
+        """Guard against accidentally re-introducing ``print`` calls."""
+        import inspect
+
+        source = inspect.getsource(backup_mod)
+        # Strip docstrings/string literals containing the word "print" out
+        # by checking for actual call syntax. ``print(`` (function call) is
+        # what we want to forbid.
+        assert "print(" not in source

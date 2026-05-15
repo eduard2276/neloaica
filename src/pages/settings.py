@@ -1,7 +1,11 @@
 """Settings page."""
 
+import logging
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QApplication,
+    QDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -13,9 +17,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src import __version__
 from src.database.models import get_receipt_number, get_tva, update_receipt_number, update_tva
 from src.services import create_backup
+from src.services.updater import (
+    UpdateApplyError,
+    UpdateInfo,
+    UpdateOrchestrator,
+    Version,
+)
 from src.styles.theme_manager import ThemeManager
+from src.widgets import UpdateCheckWorker, UpdateProgressDialog
+
+logger = logging.getLogger(__name__)
 
 
 class SettingsPage(QWidget):
@@ -24,6 +38,11 @@ class SettingsPage(QWidget):
     def __init__(self):
         super().__init__()
         self.theme = ThemeManager()
+        # The orchestrator is built lazily so the network is never
+        # touched until the user clicks "Verifică actualizări". Tests
+        # inject a fake via ``set_update_orchestrator_factory``.
+        self._orchestrator_factory = _default_orchestrator_factory
+        self._check_worker = None
         self.init_ui()
         self.load_settings()
         self.set_editing(False)
@@ -34,9 +53,9 @@ class SettingsPage(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
 
-        # Title
+        # Title — overridden in blue to demo the auto-update path (PR #8).
         title = QLabel("Settings")
-        title.setStyleSheet(self.theme.page_title())
+        title.setStyleSheet(self.theme.page_title() + "color: #1565c0;")
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(title)
 
@@ -122,6 +141,34 @@ class SettingsPage(QWidget):
         backup_layout.addLayout(backup_button_layout)
         backup_group.setLayout(backup_layout)
         layout.addWidget(backup_group)
+
+        # Updates section -----------------------------------------------
+        updates_group = QGroupBox("Actualizări")
+        updates_group.setStyleSheet(self.theme.groupbox())
+        updates_layout = QVBoxLayout()
+        updates_layout.setSpacing(15)
+
+        self.current_version_label = QLabel(f"Versiunea curentă: {__version__}")
+        self.current_version_label.setStyleSheet("color: #2c3e50; font-size: 13px;")
+        updates_layout.addWidget(self.current_version_label)
+
+        self.update_status_label = QLabel("Apasă butonul pentru a verifica actualizările.")
+        self.update_status_label.setStyleSheet("color: #7f8c8d; font-size: 13px;")
+        self.update_status_label.setWordWrap(True)
+        updates_layout.addWidget(self.update_status_label)
+
+        check_layout = QHBoxLayout()
+        self.check_update_button = QPushButton("🔄 Verifică actualizări")
+        self.check_update_button.setStyleSheet(self.theme.button("primary"))
+        self.check_update_button.setMinimumHeight(40)
+        self.check_update_button.setMaximumWidth(250)
+        self.check_update_button.clicked.connect(self.on_check_update_clicked)
+        check_layout.addWidget(self.check_update_button)
+        check_layout.addStretch()
+        updates_layout.addLayout(check_layout)
+
+        updates_group.setLayout(updates_layout)
+        layout.addWidget(updates_group)
 
         layout.addStretch()
 
@@ -284,3 +331,191 @@ class SettingsPage(QWidget):
             msg.setText("Failed to create database backup. Please try again.")
             msg.setStyleSheet(self.theme.message_box_confirm())
             msg.exec()
+
+    # ------------------------------------------------------------------
+    # Auto-update flow
+    # ------------------------------------------------------------------
+
+    def set_update_orchestrator_factory(self, factory):
+        """Inject a custom factory (used by tests).
+
+        ``factory`` must be a no-arg callable returning a configured
+        :class:`UpdateOrchestrator`.
+        """
+        self._orchestrator_factory = factory
+
+    def on_check_update_clicked(self):
+        """Handler for the "Verifică actualizări" button."""
+        if self._check_worker is not None and self._check_worker.isRunning():
+            return
+        self.check_update_button.setEnabled(False)
+        self.update_status_label.setText("Se verifică actualizările...")
+
+        try:
+            orchestrator = self._orchestrator_factory()
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.exception("Failed to build update orchestrator")
+            self._show_update_error(f"Nu am putut iniția verificarea: {exc}")
+            self.check_update_button.setEnabled(True)
+            return
+
+        self._orchestrator = orchestrator
+        # NOTE: deliberately no ``parent=self`` here. ``QThread`` and
+        # ``QObject`` parent ownership combined can crash on tear-down
+        # if the parent is destroyed while ``run()`` is still active.
+        # We instead hold a strong reference on ``self`` so the
+        # worker is alive as long as the page is, and we explicitly
+        # ``wait()`` for it in ``_cleanup_check_worker`` /
+        # ``closeEvent``.
+        self._check_worker = UpdateCheckWorker(orchestrator)
+        self._check_worker.finished_ok.connect(self._on_check_finished)
+        self._check_worker.failed.connect(self._on_check_failed)
+        self._check_worker.finished.connect(self._cleanup_check_worker)
+        self._check_worker.start()
+
+    def _cleanup_check_worker(self):
+        """Slot for ``QThread.finished``.
+
+        We do NOT call ``deleteLater`` here — the worker is parented
+        to the page so Qt cleans it up when the page itself is
+        destroyed. Calling ``deleteLater`` from the worker's own
+        ``finished`` signal can race with pending queued signals
+        (``finished_ok``/``failed``) and crash under pytest-qt.
+        """
+        worker = self._check_worker
+        if worker is None:
+            return
+        worker.wait(2000)
+        self._check_worker = None
+
+    def closeEvent(self, event):  # noqa: N802 (Qt naming)
+        """Block until any background worker finishes before tear-down.
+
+        Without this Qt can destroy ``self`` while a ``QThread`` is
+        still inside ``run()`` and the interpreter crashes with an
+        access violation under pytest-qt.
+        """
+        worker = self._check_worker
+        if worker is not None and worker.isRunning():
+            worker.wait(2000)
+        super().closeEvent(event)
+
+    def _on_check_finished(self, info):
+        """Slot for ``UpdateCheckWorker.finished_ok``."""
+        self.check_update_button.setEnabled(True)
+        if info is None:
+            self.update_status_label.setText(f"Folosești cea mai recentă versiune ({__version__}).")
+            return
+
+        self.update_status_label.setText(
+            f"Versiunea {info.version} este disponibilă (curentă: {__version__})."
+        )
+        self._prompt_to_download(info)
+
+    def _on_check_failed(self, message: str):
+        """Slot for ``UpdateCheckWorker.failed``."""
+        self.check_update_button.setEnabled(True)
+        self.update_status_label.setText(
+            "Verificarea a eșuat. Vezi detaliile în mesajul de mai jos."
+        )
+        self._show_update_error(
+            f"Nu am putut verifica actualizările:\n\n{message}\n\n"
+            "Verifică conexiunea la internet și încearcă din nou."
+        )
+
+    def _prompt_to_download(self, info: UpdateInfo):
+        """Ask the user whether to download the new version."""
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setWindowTitle("Actualizare disponibilă")
+        text = (
+            f"Versiunea {info.version} este disponibilă.\n"
+            f"Versiunea curentă: {__version__}.\n\n"
+            "Vrei să o descarci acum? La final aplicația va trebui să repornească."
+        )
+        if info.mandatory:
+            text = "[Actualizare obligatorie]\n\n" + text
+        msg.setText(text)
+        msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg.setDefaultButton(QMessageBox.StandardButton.Yes)
+        msg.setStyleSheet(self.theme.message_box_confirm())
+        if msg.exec() != QMessageBox.StandardButton.Yes:
+            self.update_status_label.setText(
+                f"Versiunea {info.version} este disponibilă, dar nu ai descărcat-o."
+            )
+            return
+
+        self._start_download(info)
+
+    def _start_download(self, info: UpdateInfo):
+        """Open the progress dialog and run the download."""
+        dialog = UpdateProgressDialog(self._orchestrator, info, parent=self)
+        dialog.start()
+        result = dialog.exec()
+
+        if result != QDialog.DialogCode.Accepted:
+            error = dialog.error_message
+            if error:
+                self.update_status_label.setText("Descărcarea a eșuat.")
+                self._show_update_error(f"Descărcarea actualizării a eșuat:\n\n{error}")
+            else:
+                self.update_status_label.setText("Descărcarea a fost anulată.")
+            return
+
+        download = dialog.download_result
+        if download is None:  # pragma: no cover - defensive
+            self.update_status_label.setText("Descărcarea s-a încheiat fără rezultat.")
+            return
+
+        self._prompt_to_apply(download)
+
+    def _prompt_to_apply(self, download):
+        """Ask the user whether to apply the freshly downloaded update."""
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setWindowTitle("Instalează actualizarea?")
+        msg.setText(
+            f"Versiunea {download.info.version} a fost descărcată.\n\n"
+            "Aplicația trebuie să se închidă pentru a o instala. "
+            "Va reporni automat la final. Continui?"
+        )
+        msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg.setDefaultButton(QMessageBox.StandardButton.Yes)
+        msg.setStyleSheet(self.theme.message_box_confirm())
+        if msg.exec() != QMessageBox.StandardButton.Yes:
+            self.update_status_label.setText(
+                f"Actualizarea {download.info.version} este pregătită în "
+                f"{download.path}. Apasă din nou pentru a o instala."
+            )
+            return
+
+        try:
+            self._orchestrator.apply(download)
+        except UpdateApplyError as exc:
+            logger.warning("Apply failed: %s", exc)
+            self.update_status_label.setText("Instalarea a eșuat.")
+            self._show_update_error(f"Instalarea actualizării a eșuat:\n\n{exc}")
+            return
+
+        # The helper script is now waiting for THIS process to die so
+        # it can swap directories. Closing the Qt event loop is the
+        # cleanest way to do that.
+        self.update_status_label.setText("Aplicația se închide pentru a finaliza instalarea...")
+        QApplication.instance().quit()
+
+    def _show_update_error(self, message: str):
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setWindowTitle("Actualizări")
+        msg.setText(message)
+        msg.setStyleSheet(self.theme.message_box_confirm())
+        msg.exec()
+
+
+def _default_orchestrator_factory() -> UpdateOrchestrator:
+    """Build an :class:`UpdateOrchestrator` for the running app.
+
+    Kept at module level so :class:`SettingsPage.set_update_orchestrator_factory`
+    can swap in a test stub without subclassing.
+    """
+    return UpdateOrchestrator(Version.coerce(__version__))

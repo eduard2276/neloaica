@@ -1,17 +1,25 @@
-"""Database backup service."""
+"""Database backup service.
 
+Backups live under :func:`src.paths.get_backups_dir` (i.e. inside the
+per-user data directory in frozen mode, the project root in dev). Status
+messages go through the standard ``logging`` framework instead of ``print``
+so they end up in the rotating log file configured by
+:mod:`src.services.logging_setup`.
+"""
+
+import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple
 
 from src.database.connection import DatabaseConnection
-from src.paths import get_app_dir
+from src.paths import get_backups_dir
 
-# Backups live next to the exe/project
-BACKUPS_DIR = get_app_dir() / "backups"
+logger = logging.getLogger(__name__)
 
-# Maximum number of backups to keep
+BACKUPS_DIR = get_backups_dir()
+
 MAX_BACKUPS = 7
 
 
@@ -39,27 +47,23 @@ def create_backup(backup_type: str = "manual") -> Tuple[str, bool]:
     try:
         ensure_backups_dir()
 
-        # Get database path
         db_path = get_database_path()
 
         if not db_path.exists():
             return "", False
 
-        # Generate backup filename with timestamp and type
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         backup_filename = f"neloaica_backup_{backup_type}_{timestamp}.db"
         backup_path = BACKUPS_DIR / backup_filename
 
-        # Copy database file
         shutil.copy2(db_path, backup_path)
 
-        # Clean up old backups
         cleanup_old_backups()
 
         return str(backup_path), True
 
     except Exception as e:
-        print(f"[ERROR] Failed to create backup: {e}")
+        logger.error("Failed to create backup: %s", e)
         return "", False
 
 
@@ -69,18 +73,16 @@ def cleanup_old_backups():
         if not BACKUPS_DIR.exists():
             return
 
-        # Get all backup files sorted by modification time (newest first)
         backup_files = sorted(
             BACKUPS_DIR.glob("neloaica_backup_*.db"), key=lambda p: p.stat().st_mtime, reverse=True
         )
 
-        # Remove old backups beyond the limit
         for old_backup in backup_files[MAX_BACKUPS:]:
             old_backup.unlink()
-            print(f"[INFO] Removed old backup: {old_backup.name}")
+            logger.info("Removed old backup: %s", old_backup.name)
 
     except Exception as e:
-        print(f"[ERROR] Failed to cleanup old backups: {e}")
+        logger.error("Failed to cleanup old backups: %s", e)
 
 
 def get_all_backups() -> List[dict]:
@@ -111,7 +113,7 @@ def get_all_backups() -> List[dict]:
         return backups
 
     except Exception as e:
-        print(f"[ERROR] Failed to get backup list: {e}")
+        logger.error("Failed to get backup list: %s", e)
         return []
 
 
@@ -128,19 +130,18 @@ def should_create_daily_backup() -> bool:
         if not BACKUPS_DIR.exists():
             return True
 
-        # Check if any backup was created today
         for backup_file in BACKUPS_DIR.glob("neloaica_backup_*.db"):
-            # Extract date from filename (format: neloaica_backup_TYPE_YYYY-MM-DD_HH-MM-SS.db)
+            # filename format: neloaica_backup_TYPE_YYYY-MM-DD_HH-MM-SS.db
             parts = backup_file.stem.split("_")
             if len(parts) >= 4:
-                backup_date = parts[3]  # YYYY-MM-DD part
+                backup_date = parts[3]
                 if backup_date == today:
                     return False
 
         return True
 
     except Exception as e:
-        print(f"[ERROR] Failed to check daily backup status: {e}")
+        logger.error("Failed to check daily backup status: %s", e)
         return False
 
 
@@ -159,24 +160,23 @@ def restore_backup(backup_path: str) -> bool:
         if not backup_file.exists():
             return False
 
-        # Get current database path
         db_path = get_database_path()
 
-        # Create a safety backup of current database before restoring
+        # Drop a safety copy of the current DB next to the live one before
+        # we overwrite it, so a botched restore is recoverable.
         safety_backup = (
             db_path.parent
             / f"{db_path.stem}_before_restore_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
         )
         shutil.copy2(db_path, safety_backup)
 
-        # Restore the backup
         shutil.copy2(backup_file, db_path)
 
-        print(f"[INFO] Database restored from {backup_file.name}")
-        print(f"[INFO] Safety backup created at {safety_backup.name}")
+        logger.info("Database restored from %s", backup_file.name)
+        logger.info("Safety backup created at %s", safety_backup.name)
 
         return True
 
     except Exception as e:
-        print(f"[ERROR] Failed to restore backup: {e}")
+        logger.error("Failed to restore backup: %s", e)
         return False

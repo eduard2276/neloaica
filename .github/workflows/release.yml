@@ -1,0 +1,160 @@
+name: Release
+
+# Triggered when a SemVer tag is pushed (e.g. `v1.0.0`, `v1.2.3`).
+# Builds a Windows PyInstaller `onedir` bundle, zips it, and attaches
+# the archive to the matching GitHub Release.
+#
+# The tag must match `src/__version__` exactly — `verify_tag_matches_version.py`
+# fails fast otherwise so we never publish a build with a stale version
+# label. PR #4-6 (the in-app updater) compares against this same value.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write   # needed to create / update the GitHub Release
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Windows artefact
+    runs-on: windows-latest
+
+    env:
+      PYTHONIOENCODING: utf-8
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+
+      - name: Install runtime + build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Verify tag matches src/__version__
+        # Fails the workflow if e.g. someone tags v1.2.0 but forgot to
+        # bump src/__init__.py. The script prints a friendly diff to
+        # stderr so the failure is obvious from the workflow log.
+        run: python scripts/verify_tag_matches_version.py "${{ github.ref_name }}"
+
+      - name: Show resolved environment
+        run: |
+          python --version
+          python -c "import PySide6; print('PySide6', PySide6.__version__)"
+          python -c "import PyInstaller; print('PyInstaller', PyInstaller.__version__)"
+          python -c "from src import __version__; print('app version', __version__)"
+
+      - name: Build with PyInstaller
+        run: python -m PyInstaller --noconfirm --clean Neloaica.spec
+
+      - name: Sanity check the bundle
+        # Catch a build that produced an empty / malformed dist/ before
+        # we publish it as a release asset.
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist/Neloaica/Neloaica.exe")) {
+            Write-Error "dist/Neloaica/Neloaica.exe missing — PyInstaller build failed silently"
+            exit 1
+          }
+          if (-not (Test-Path "dist/Neloaica/_internal/templates/Template-deviz.xlsx")) {
+            Write-Error "Excel template was not bundled into dist/Neloaica/_internal/templates/"
+            exit 1
+          }
+
+      - name: Zip bundle
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          Compress-Archive -Path "dist/Neloaica/*" `
+                           -DestinationPath "dist/Neloaica-$tag-windows.zip" `
+                           -CompressionLevel Optimal
+
+      - name: Upload bundle as workflow artefact
+        # Useful even when the GitHub Release step is skipped, e.g. for
+        # debugging from the Actions UI.
+        uses: actions/upload-artifact@v4
+        with:
+          name: Neloaica-${{ github.ref_name }}-windows
+          path: dist/Neloaica-${{ github.ref_name }}-windows.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create / Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Neloaica-${{ github.ref_name }}-windows.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+      - name: Compute artefact SHA-256
+        # The in-app updater (PR #5) verifies this hash before applying
+        # the archive, so we make it available to the manifest step
+        # below as an environment variable.
+        id: sha
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash "dist/Neloaica-${{ github.ref_name }}-windows.zip" -Algorithm SHA256).Hash.ToLower()
+          Write-Output "sha256=$hash" >> $env:GITHUB_OUTPUT
+          Write-Host "SHA-256: $hash"
+
+      - name: Update update-manifest.json on main
+        # Updates the manifest at the URL the in-app updater polls
+        # (raw.githubusercontent.com/.../main/update-manifest.json).
+        # Failure here MUST NOT roll back the GitHub Release: the
+        # build artefact is already published — the worst case is
+        # that clients keep seeing the previous version until we
+        # fix the manifest manually.
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          $sha = "${{ steps.sha.outputs.sha256 }}"
+          $asset = "Neloaica-$tag-windows.zip"
+
+          git fetch origin main
+          git checkout main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          python scripts/update_manifest.py `
+            --version $version `
+            --channel stable `
+            --sha256 $sha `
+            --owner "${{ github.repository_owner }}" `
+            --repo "$(($env:GITHUB_REPOSITORY -split '/')[1])" `
+            --asset $asset `
+            --manifest update-manifest.json
+
+          # PowerShell does NOT translate native command exit codes into
+          # a truthy boolean automatically, so we check $LASTEXITCODE
+          # explicitly. `git diff --quiet` exits 0 when there are no
+          # differences and 1 otherwise.
+          git diff --quiet update-manifest.json
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Manifest already up to date — nothing to commit."
+            exit 0
+          }
+
+          git add update-manifest.json
+          $commitMsg = "release: update manifest for $tag`n`n[skip ci]"
+          git commit -m $commitMsg
+          git push origin main
