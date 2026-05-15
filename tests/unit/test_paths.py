@@ -218,6 +218,145 @@ class TestMigrateLegacyDb:
 
 
 # ===========================================================================
+# TestMigrateLegacyDir
+# ===========================================================================
+
+
+class TestMigrateLegacyDir:
+    """Used for the ``backups/`` folder migration. Mirrors :func:`migrate_legacy_db`
+    but at directory granularity."""
+
+    def test_returns_zero_when_legacy_missing(self, tmp_path):
+        legacy = tmp_path / "missing"
+        new = tmp_path / "new"
+        assert paths.migrate_legacy_dir(legacy, new) == 0
+        assert not new.exists()
+
+    def test_returns_zero_when_legacy_is_a_file(self, tmp_path):
+        # Defensive: someone passes a file path instead of a directory.
+        legacy = tmp_path / "not_a_dir"
+        legacy.write_text("oops")
+        new = tmp_path / "new"
+        assert paths.migrate_legacy_dir(legacy, new) == 0
+
+    def test_returns_zero_when_legacy_equals_new(self, tmp_path):
+        # Dev-mode no-op: backups dir is the same as new dir.
+        same = tmp_path / "backups"
+        same.mkdir()
+        (same / "neloaica_backup_manual_x.db").write_bytes(b"x")
+        moved = paths.migrate_legacy_dir(same, same)
+        assert moved == 0
+        # File must still be there.
+        assert (same / "neloaica_backup_manual_x.db").exists()
+
+    def test_moves_all_files(self, tmp_path):
+        legacy = tmp_path / "legacy"
+        new = tmp_path / "user_data" / "backups"
+        legacy.mkdir()
+        for i in range(3):
+            (legacy / f"neloaica_backup_manual_{i}.db").write_bytes(bytes([i]))
+
+        moved = paths.migrate_legacy_dir(legacy, new)
+        assert moved == 3
+        assert not legacy.exists()  # cleaned up
+        for i in range(3):
+            assert (new / f"neloaica_backup_manual_{i}.db").read_bytes() == bytes([i])
+
+    def test_creates_new_dir_when_missing(self, tmp_path):
+        legacy = tmp_path / "legacy"
+        legacy.mkdir()
+        (legacy / "a.db").write_bytes(b"x")
+        new = tmp_path / "deeply" / "nested" / "backups"
+
+        assert not new.exists()
+        moved = paths.migrate_legacy_dir(legacy, new)
+        assert moved == 1
+        assert new.is_dir()
+        assert (new / "a.db").exists()
+
+    def test_skips_files_that_already_exist_in_new(self, tmp_path):
+        legacy = tmp_path / "legacy"
+        new = tmp_path / "new"
+        legacy.mkdir()
+        new.mkdir()
+
+        (legacy / "conflict.db").write_bytes(b"OLD")
+        (legacy / "fresh.db").write_bytes(b"NEW")
+        (new / "conflict.db").write_bytes(b"AUTHORITATIVE")
+
+        moved = paths.migrate_legacy_dir(legacy, new)
+        # Only "fresh.db" got moved; "conflict.db" stays in legacy.
+        assert moved == 1
+        assert (new / "conflict.db").read_bytes() == b"AUTHORITATIVE"
+        assert (new / "fresh.db").read_bytes() == b"NEW"
+        # Legacy folder still exists because the conflict file is left behind.
+        assert legacy.exists()
+        assert (legacy / "conflict.db").read_bytes() == b"OLD"
+        assert not (legacy / "fresh.db").exists()
+
+    def test_keeps_legacy_dir_when_files_remain(self, tmp_path):
+        legacy = tmp_path / "legacy"
+        new = tmp_path / "new"
+        legacy.mkdir()
+        (legacy / "stay.db").write_bytes(b"x")
+        (new).mkdir()
+        (new / "stay.db").write_bytes(b"already there")
+
+        paths.migrate_legacy_dir(legacy, new)
+        # Conflict → file untouched in legacy → legacy must NOT be removed.
+        assert legacy.exists()
+        assert (legacy / "stay.db").exists()
+
+    def test_recurses_into_subdirectories(self, tmp_path):
+        legacy = tmp_path / "legacy"
+        new = tmp_path / "new"
+        (legacy / "sub").mkdir(parents=True)
+        (legacy / "top.db").write_bytes(b"a")
+        (legacy / "sub" / "nested.db").write_bytes(b"b")
+
+        moved = paths.migrate_legacy_dir(legacy, new)
+        assert moved == 2
+        assert (new / "top.db").read_bytes() == b"a"
+        assert (new / "sub" / "nested.db").read_bytes() == b"b"
+        assert not legacy.exists()
+
+    def test_swallows_per_file_oserror(self, tmp_path, monkeypatch):
+        legacy = tmp_path / "legacy"
+        new = tmp_path / "new"
+        legacy.mkdir()
+        (legacy / "a.db").write_bytes(b"a")
+        (legacy / "b.db").write_bytes(b"b")
+
+        original_move = paths.shutil.move
+        calls = {"n": 0}
+
+        def flaky_move(src, dst, *args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise OSError("transient")
+            return original_move(src, dst, *args, **kwargs)
+
+        monkeypatch.setattr(paths.shutil, "move", flaky_move)
+
+        moved = paths.migrate_legacy_dir(legacy, new)
+        # One file failed, the other succeeded.
+        assert moved == 1
+        # Legacy still has the failed file.
+        assert legacy.exists()
+        assert any(legacy.iterdir())
+
+    def test_returns_int_not_bool(self, tmp_path):
+        # Important for the bootstrap log line: it must be a count, not a flag.
+        legacy = tmp_path / "legacy"
+        new = tmp_path / "new"
+        legacy.mkdir()
+        (legacy / "a.db").write_bytes(b"x")
+        result = paths.migrate_legacy_dir(legacy, new)
+        assert isinstance(result, int)
+        assert result == 1
+
+
+# ===========================================================================
 # TestProjectStructure
 # ===========================================================================
 

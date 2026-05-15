@@ -43,11 +43,18 @@ def fake_setup(monkeypatch, tmp_path):
     def fake_get_database_path():
         return tmp_path / "user_data" / "neloaica.db"
 
+    def fake_get_backups_dir():
+        return tmp_path / "user_data" / "backups"
+
     def fake_migrate(legacy: Path, new: Path) -> bool:
         calls.append(("migrate", str(legacy), str(new)))
         # Default: pretend nothing was migrated. Tests that need a positive
         # result override this directly.
         return False
+
+    def fake_migrate_dir(legacy: Path, new: Path) -> int:
+        calls.append(("migrate_dir", str(legacy), str(new)))
+        return 0
 
     def fake_init_db():
         calls.append("init_database")
@@ -63,7 +70,9 @@ def fake_setup(monkeypatch, tmp_path):
     monkeypatch.setattr(main_mod, "setup_logging", fake_setup_logging)
     monkeypatch.setattr(main_mod, "get_app_dir", fake_get_app_dir)
     monkeypatch.setattr(main_mod, "get_database_path", fake_get_database_path)
+    monkeypatch.setattr(main_mod, "get_backups_dir", fake_get_backups_dir)
     monkeypatch.setattr(main_mod, "migrate_legacy_db", fake_migrate)
+    monkeypatch.setattr(main_mod, "migrate_legacy_dir", fake_migrate_dir)
     monkeypatch.setattr(main_mod, "init_database", fake_init_db)
     monkeypatch.setattr(main_mod, "create_backup", fake_create_backup)
     monkeypatch.setattr(main_mod, "should_create_daily_backup", fake_should_daily)
@@ -73,6 +82,7 @@ def fake_setup(monkeypatch, tmp_path):
         "log_file": log_file,
         "app_dir": tmp_path / "app",
         "db_path": tmp_path / "user_data" / "neloaica.db",
+        "backups_dir": tmp_path / "user_data" / "backups",
     }
 
 
@@ -151,6 +161,63 @@ class TestLegacyDbMigration:
         with caplog.at_level(logging.INFO, logger="src.main"):
             main_mod.bootstrap()
         assert any("Migrated legacy DB" in r.message for r in caplog.records)
+
+
+# ===========================================================================
+# TestLegacyBackupsMigration
+# ===========================================================================
+
+
+class TestLegacyBackupsMigration:
+    """Mirrors the DB-migration coverage but for the ``backups/`` directory."""
+
+    def test_migrate_dir_called_with_correct_paths(self, fake_setup):
+        main_mod.bootstrap()
+        dir_calls = [
+            c for c in fake_setup["calls"] if isinstance(c, tuple) and c[0] == "migrate_dir"
+        ]
+        assert len(dir_calls) == 1
+        _, legacy, new = dir_calls[0]
+        assert legacy == str(fake_setup["app_dir"] / "backups")
+        assert new == str(fake_setup["backups_dir"])
+
+    def test_skips_when_legacy_equals_new(self, monkeypatch, fake_setup):
+        # Dev mode: legacy and new backups dir are the same project-root path.
+        same = fake_setup["app_dir"] / "backups"
+        monkeypatch.setattr(main_mod, "get_backups_dir", lambda: same)
+
+        fake_setup["calls"].clear()
+        main_mod.bootstrap()
+
+        dir_calls = [
+            c for c in fake_setup["calls"] if isinstance(c, tuple) and c[0] == "migrate_dir"
+        ]
+        assert dir_calls == []
+
+    def test_logs_count_when_files_were_moved(self, fake_setup, monkeypatch, caplog):
+        # Override migrate_legacy_dir to claim three files were moved.
+        def fake_migrate_dir(legacy, new):
+            fake_setup["calls"].append(("migrate_dir", str(legacy), str(new)))
+            return 3
+
+        monkeypatch.setattr(main_mod, "migrate_legacy_dir", fake_migrate_dir)
+        with caplog.at_level(logging.INFO, logger="src.main"):
+            main_mod.bootstrap()
+        msgs = [r.message for r in caplog.records]
+        assert any("Migrated 3 legacy backup file(s)" in m for m in msgs)
+
+    def test_no_log_when_zero_files_moved(self, fake_setup, caplog):
+        # Default fake_migrate_dir returns 0 → no log line should mention backups.
+        with caplog.at_level(logging.INFO, logger="src.main"):
+            main_mod.bootstrap()
+        msgs = [r.message for r in caplog.records]
+        assert not any("legacy backup file" in m for m in msgs)
+
+    def test_runs_after_db_migration_and_before_init(self, fake_setup):
+        main_mod.bootstrap()
+        names = [c if isinstance(c, str) else c[0] for c in fake_setup["calls"]]
+        assert names.index("migrate") < names.index("migrate_dir")
+        assert names.index("migrate_dir") < names.index("init_database")
 
 
 # ===========================================================================

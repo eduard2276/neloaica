@@ -128,3 +128,74 @@ def migrate_legacy_db(legacy_path: Path, new_path: Path) -> bool:
         return True
     except OSError:
         return False
+
+
+def migrate_legacy_dir(legacy_dir: Path, new_dir: Path) -> int:
+    """Move files from a legacy directory next to the exe into the user data dir.
+
+    Used for the ``backups/`` folder that older builds wrote next to the
+    executable. Behaviour mirrors :func:`migrate_legacy_db` but at the
+    directory level:
+
+        * No ``legacy_dir`` on disk → return 0 (nothing to do).
+        * ``legacy_dir == new_dir`` → return 0 (dev-mode no-op).
+        * For each regular file inside ``legacy_dir``:
+            - if the same name does not exist in ``new_dir`` → move it.
+            - if it already exists in ``new_dir`` → leave the legacy file
+              in place. Backup filenames carry a timestamp so the only
+              way to hit a conflict is for the user to have re-run the
+              migration with the same files, in which case the user data
+              dir is already authoritative.
+        * If ``legacy_dir`` ends up empty (or only contains empty
+          subdirectories) → remove it.
+        * Subdirectories under ``legacy_dir`` are walked recursively;
+          ``new_dir`` mirrors the relative structure.
+
+    Returns:
+        The number of files actually moved. ``0`` is a valid success value
+        when there was nothing to migrate.
+
+    Like :func:`migrate_legacy_db`, this function swallows ``OSError`` and
+    returns whatever progress it made — the application must still be
+    able to boot if the migration partially fails.
+    """
+    if not legacy_dir.exists() or not legacy_dir.is_dir():
+        return 0
+    if legacy_dir == new_dir:
+        return 0
+
+    moved = 0
+    try:
+        new_dir.mkdir(parents=True, exist_ok=True)
+        for entry in sorted(legacy_dir.rglob("*")):
+            if not entry.is_file():
+                continue
+            rel = entry.relative_to(legacy_dir)
+            target = new_dir / rel
+            if target.exists():
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                shutil.move(str(entry), str(target))
+                moved += 1
+            except OSError:
+                # One file failed; keep going so the rest still get out.
+                continue
+
+        # Best-effort cleanup of now-empty directories. ``rmdir`` only
+        # succeeds on empty dirs so any leftover files (skipped on conflict
+        # or failed to move) keep the legacy folder around for the user.
+        for entry in sorted(legacy_dir.rglob("*"), reverse=True):
+            if entry.is_dir():
+                try:
+                    entry.rmdir()
+                except OSError:
+                    pass
+        try:
+            legacy_dir.rmdir()
+        except OSError:
+            pass
+    except OSError:
+        pass
+
+    return moved
