@@ -14,4 +14,4 @@ matching ``vX.Y.Z`` tag. The release CI workflow verifies that the tag and the
 in-code version match before producing artifacts.
 """
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
