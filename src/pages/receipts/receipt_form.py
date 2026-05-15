@@ -1,34 +1,34 @@
 """Receipt form page - Create or edit a receipt."""
 
+from PySide6.QtCore import QDate, Qt, Signal
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
-    QScrollArea,
     QPushButton,
-    QGroupBox,
-    QMessageBox,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import QDate, Qt, Signal
-from PySide6.QtGui import QShortcut, QKeySequence
 
-from .receipt_info import ReceiptInfoWidget
-from .estimates_section import EstimatesSectionWidget
-from .defects_section import DefectsSectionWidget
-from .parts_section import PartsSectionWidget
-from .labor_section import LaborSectionWidget
-from .billable_parts_section import BillablePartsSectionWidget
-from src.services import generate_receipt_excel, template_exists, create_backup
 from src.database.models.cars import update_car_kilometers
 from src.database.models.receipts import (
     add_receipt,
-    update_receipt,
     get_receipt_by_id,
     get_receipt_by_plate_and_date,
+    update_receipt,
 )
+from src.services import create_backup, generate_receipt_excel, template_exists
 from src.styles import theme
-from src.utils import show_warning, show_info, show_critical
+from src.utils import show_critical, show_info, show_warning
+
+from .billable_parts_section import BillablePartsSectionWidget
+from .defects_section import DefectsSectionWidget
+from .estimates_section import EstimatesSectionWidget
+from .labor_section import LaborSectionWidget
+from .parts_section import PartsSectionWidget
+from .receipt_info import ReceiptInfoWidget
 
 
 class ReceiptFormPage(QWidget):
@@ -199,27 +199,29 @@ class ReceiptFormPage(QWidget):
         self.title_label.setText(f"🧾 Edit Receipt #{receipt_id}")
         self.receipt_data = {}
 
-        self.receipt_info_widget.set_data({
-            'client_id': receipt.get('client_id'),
-            'car_id': receipt.get('car_id'),
-            'kilometers': receipt.get('kilometers', ''),
-            'executant_name': receipt.get('executant_name', ''),
-            'date': receipt.get('date', ''),
-        })
+        self.receipt_info_widget.set_data(
+            {
+                "client_id": receipt.get("client_id"),
+                "car_id": receipt.get("car_id"),
+                "kilometers": receipt.get("kilometers", ""),
+                "executant_name": receipt.get("executant_name", ""),
+                "date": receipt.get("date", ""),
+            }
+        )
 
         self.estimates_widget.set_data(
-            receipt.get('estimate_cost', 0.0),
-            receipt.get('estimated_final_date', ''),
+            receipt.get("estimate_cost", 0.0),
+            receipt.get("estimated_final_date", ""),
         )
 
-        self.defects_widget.set_data(receipt.get('defects', []))
-        self.discovered_defects_widget.set_data(receipt.get('discovered_defects', []))
-        self.parts_widget.set_data(receipt.get('parts', []))
+        self.defects_widget.set_data(receipt.get("defects", []))
+        self.discovered_defects_widget.set_data(receipt.get("discovered_defects", []))
+        self.parts_widget.set_data(receipt.get("parts", []))
         self.labor_widget.set_data(
-            receipt.get('labor', []),
-            receipt.get('total_labor_cost', 0.0),
+            receipt.get("labor", []),
+            receipt.get("total_labor_cost", 0.0),
         )
-        self.billable_parts_widget.set_data(receipt.get('billable_parts', []))
+        self.billable_parts_widget.set_data(receipt.get("billable_parts", []))
 
         self.update_grand_total()
         self._dirty = False
@@ -242,7 +244,7 @@ class ReceiptFormPage(QWidget):
         receipt tab.
         """
         super().showEvent(event)
-        if hasattr(self, 'labor_widget'):
+        if hasattr(self, "labor_widget"):
             self._reload_all_data(restore_state=True)
 
     def on_receipt_info_changed(self, data: dict):
@@ -252,45 +254,45 @@ class ReceiptFormPage(QWidget):
 
     def on_defects_changed(self, defect_ids: list):
         """Handle defects list change."""
-        self.receipt_data['defects'] = defect_ids
+        self.receipt_data["defects"] = defect_ids
         self._dirty = True
 
     def on_estimates_changed(self, estimate_cost: float, estimated_final_date: str):
         """Handle estimates section data change."""
-        self.receipt_data['estimate_cost'] = estimate_cost
-        self.receipt_data['estimated_final_date'] = estimated_final_date
+        self.receipt_data["estimate_cost"] = estimate_cost
+        self.receipt_data["estimated_final_date"] = estimated_final_date
         self._dirty = True
 
     def on_discovered_defects_changed(self, defect_ids: list):
         """Handle discovered defects list change."""
-        self.receipt_data['discovered_defects'] = defect_ids
+        self.receipt_data["discovered_defects"] = defect_ids
         self._dirty = True
 
     def on_parts_changed(self, part_ids: list):
         """Handle parts list change."""
-        self.receipt_data['parts'] = part_ids
+        self.receipt_data["parts"] = part_ids
         self._dirty = True
 
     def on_labor_changed(self, labor_ids: list, total_cost: float):
         """Handle labor list change."""
-        self.receipt_data['labor'] = labor_ids
-        self.receipt_data['total_labor_cost'] = total_cost
+        self.receipt_data["labor"] = labor_ids
+        self.receipt_data["total_labor_cost"] = total_cost
         self._dirty = True
         self.update_grand_total()
 
     def on_billable_parts_changed(self, parts_list: list, total_cost: float):
         """Handle billable parts list change."""
-        self.receipt_data['billable_parts'] = parts_list
-        self.receipt_data['total_parts_cost'] = total_cost
+        self.receipt_data["billable_parts"] = parts_list
+        self.receipt_data["total_parts_cost"] = total_cost
         self._dirty = True
         self.update_grand_total()
 
     def update_grand_total(self):
         """Update the grand total label (Labor + Parts)."""
-        labor_cost = self.receipt_data.get('total_labor_cost', 0.0)
-        parts_cost = self.receipt_data.get('total_parts_cost', 0.0)
+        labor_cost = self.receipt_data.get("total_labor_cost", 0.0)
+        parts_cost = self.receipt_data.get("total_parts_cost", 0.0)
         grand_total = labor_cost + parts_cost
-        self.receipt_data['grand_total'] = grand_total
+        self.receipt_data["grand_total"] = grand_total
         self.grand_total_value.setText(f"{self.format_price(grand_total)} Lei")
 
     def format_price(self, value) -> str:
@@ -300,47 +302,45 @@ class ReceiptFormPage(QWidget):
         except (ValueError, TypeError):
             return "0.00"
         integer_part = int(num)
-        decimal_part = f"{num:.2f}".split('.')[1]
-        formatted = ''
+        decimal_part = f"{num:.2f}".split(".")[1]
+        formatted = ""
         int_str = str(integer_part)
         for i, d in enumerate(reversed(int_str)):
             if i > 0 and i % 3 == 0:
-                formatted = ' ' + formatted
+                formatted = " " + formatted
             formatted = d + formatted
         return f"{formatted}.{decimal_part}"
 
     def _collect_save_data(self) -> dict:
         """Collect all form data for saving."""
         data = dict(self.receipt_data)
-        data['grand_total'] = (
-            data.get('total_labor_cost', 0.0) + data.get('total_parts_cost', 0.0)
-        )
+        data["grand_total"] = data.get("total_labor_cost", 0.0) + data.get("total_parts_cost", 0.0)
         return data
 
     def on_save_clicked(self):
         """Save the receipt to the database without generating Excel."""
-        if not self.receipt_data.get('client_id'):
+        if not self.receipt_data.get("client_id"):
             show_warning(
-                self, "Missing Information",
+                self,
+                "Missing Information",
                 "Please select a client before saving the receipt.",
             )
             return
 
-        plate = self.receipt_data.get('plate_number', '')
-        date = self.receipt_data.get('date', '')
-        existing = get_receipt_by_plate_and_date(
-            plate, date, exclude_id=self.editing_receipt_id
-        )
+        plate = self.receipt_data.get("plate_number", "")
+        date = self.receipt_data.get("date", "")
+        existing = get_receipt_by_plate_and_date(plate, date, exclude_id=self.editing_receipt_id)
         if existing:
             show_warning(
-                self, "Duplicate Receipt",
+                self,
+                "Duplicate Receipt",
                 f"A receipt for plate '{existing['plate_number']}' on {existing['date']} "
-                f"already exists (Receipt #{existing['id']})."
+                f"already exists (Receipt #{existing['id']}).",
             )
             return
 
         data = self._collect_save_data()
-        data['status'] = 'Ongoing'
+        data["status"] = "Ongoing"
 
         if self.editing_receipt_id:
             update_receipt(self.editing_receipt_id, data)
@@ -382,7 +382,7 @@ class ReceiptFormPage(QWidget):
 
     def _emit_tab_title(self):
         """Emit the updated tab title based on current receipt data."""
-        client_name = self.receipt_data.get('client_name', '')
+        client_name = self.receipt_data.get("client_name", "")
         if self.editing_receipt_id:
             title = f"Receipt #{self.editing_receipt_id}"
             if client_name:
@@ -395,10 +395,12 @@ class ReceiptFormPage(QWidget):
         """Save the receipt, generate Excel, and mark as Done."""
         try:
             self._do_generate()
-        except Exception as e:
+        except Exception:
             import traceback
+
             show_critical(
-                self, "Error",
+                self,
+                "Error",
                 f"Failed to generate receipt:\n{traceback.format_exc()}",
             )
 
@@ -406,34 +408,35 @@ class ReceiptFormPage(QWidget):
         """Internal receipt generation logic."""
         if not template_exists():
             show_warning(
-                self, "Template Not Found",
+                self,
+                "Template Not Found",
                 "The Excel template was not found.\n\n"
                 "Please reinstall the application or contact support.",
             )
             return
 
-        if not self.receipt_data.get('client_id'):
+        if not self.receipt_data.get("client_id"):
             show_warning(
-                self, "Missing Information",
+                self,
+                "Missing Information",
                 "Please select a client before generating the receipt.",
             )
             return
 
         create_backup("pre-receipt")
-        plate = self.receipt_data.get('plate_number', '')
-        date = self.receipt_data.get('date', '')
-        existing = get_receipt_by_plate_and_date(
-            plate, date, exclude_id=self.editing_receipt_id
-        )
+        plate = self.receipt_data.get("plate_number", "")
+        date = self.receipt_data.get("date", "")
+        existing = get_receipt_by_plate_and_date(plate, date, exclude_id=self.editing_receipt_id)
         if existing:
             show_warning(
-                self, "Duplicate Receipt",
+                self,
+                "Duplicate Receipt",
                 f"A receipt for plate '{existing['plate_number']}' on {existing['date']} "
-                f"already exists (Receipt #{existing['id']})."
+                f"already exists (Receipt #{existing['id']}).",
             )
             return
-        car_id = self.receipt_data.get('car_id')
-        kilometers = self.receipt_data.get('kilometers', '')
+        car_id = self.receipt_data.get("car_id")
+        kilometers = self.receipt_data.get("kilometers", "")
         if car_id and kilometers:
             try:
                 update_car_kilometers(car_id, int(kilometers))
@@ -443,7 +446,7 @@ class ReceiptFormPage(QWidget):
         output_path, warnings = generate_receipt_excel(self.receipt_data)
 
         data = self._collect_save_data()
-        data['status'] = 'Done'
+        data["status"] = "Done"
 
         if self.editing_receipt_id:
             update_receipt(self.editing_receipt_id, data)
@@ -463,4 +466,5 @@ class ReceiptFormPage(QWidget):
         show_info(self, "Receipt Generated", message)
 
         import os
+
         os.startfile(output_path)

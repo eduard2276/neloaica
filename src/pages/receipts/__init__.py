@@ -2,4 +2,4 @@
 
 from .receipts import ReceiptsPage
 
-__all__ = ['ReceiptsPage']
+__all__ = ["ReceiptsPage"]

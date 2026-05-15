@@ -11,14 +11,15 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QDialog
 
-
 # ===========================================================================
 # ClientDialog — validation
 # ===========================================================================
 
+
 class TestClientDialogValidation:
     def _dialog(self):
         from src.pages.clients import ClientDialog
+
         return ClientDialog(parent=None, client=None)
 
     def test_window_title_add(self, qapp):
@@ -27,6 +28,7 @@ class TestClientDialogValidation:
 
     def test_window_title_edit(self, qapp):
         from src.pages.clients import ClientDialog
+
         client = {"id": 1, "first_name": "John", "last_name": "Doe", "address": "Addr"}
         dlg = ClientDialog(parent=None, client=client)
         assert dlg.windowTitle() == "Edit Client"
@@ -101,6 +103,7 @@ class TestClientsPage:
     def page(self, qapp):
         with patch("src.pages.clients.get_all_clients", return_value=_CLIENTS_SAMPLE):
             from src.pages.clients import ClientsPage
+
             return ClientsPage()
 
     def test_loads_all_clients(self, page):
@@ -135,21 +138,29 @@ class TestClientsPage:
 
     def test_add_client_dialog_accepted_calls_db(self, page):
         from PySide6.QtWidgets import QDialog
-        with patch("src.pages.clients.ClientDialog") as MockDialog, \
-             patch("src.pages.clients.add_client") as mock_add, \
-             patch("src.pages.clients.get_all_clients", return_value=_CLIENTS_SAMPLE):
+
+        with (
+            patch("src.pages.clients.ClientDialog") as MockDialog,
+            patch("src.pages.clients.add_client") as mock_add,
+            patch("src.pages.clients.get_all_clients", return_value=_CLIENTS_SAMPLE),
+        ):
             dlg = MockDialog.return_value
             dlg.exec.return_value = QDialog.DialogCode.Accepted
             dlg.get_data.return_value = {
-                "first_name": "New", "last_name": "Person", "address": "addr",
+                "first_name": "New",
+                "last_name": "Person",
+                "address": "addr",
             }
             page.add_client()
         mock_add.assert_called_once_with("New", "Person", "addr")
 
     def test_add_client_dialog_rejected_does_not_call_db(self, page):
         from PySide6.QtWidgets import QDialog
-        with patch("src.pages.clients.ClientDialog") as MockDialog, \
-             patch("src.pages.clients.add_client") as mock_add:
+
+        with (
+            patch("src.pages.clients.ClientDialog") as MockDialog,
+            patch("src.pages.clients.add_client") as mock_add,
+        ):
             dlg = MockDialog.return_value
             dlg.exec.return_value = QDialog.DialogCode.Rejected
             page.add_client()
@@ -157,20 +168,27 @@ class TestClientsPage:
 
     def test_edit_client_by_id(self, page):
         from PySide6.QtWidgets import QDialog
-        with patch("src.pages.clients.ClientDialog") as MockDialog, \
-             patch("src.pages.clients.update_client") as mock_update, \
-             patch("src.pages.clients.get_all_clients", return_value=_CLIENTS_SAMPLE):
+
+        with (
+            patch("src.pages.clients.ClientDialog") as MockDialog,
+            patch("src.pages.clients.update_client") as mock_update,
+            patch("src.pages.clients.get_all_clients", return_value=_CLIENTS_SAMPLE),
+        ):
             dlg = MockDialog.return_value
             dlg.exec.return_value = QDialog.DialogCode.Accepted
             dlg.get_data.return_value = {
-                "first_name": "X", "last_name": "Y", "address": "Z",
+                "first_name": "X",
+                "last_name": "Y",
+                "address": "Z",
             }
             page.edit_client_by_id(1)
         mock_update.assert_called_once_with(1, "X", "Y", "Z")
 
     def test_edit_unknown_id_is_silent(self, page):
-        with patch("src.pages.clients.ClientDialog") as MockDialog, \
-             patch("src.pages.clients.update_client") as mock_update:
+        with (
+            patch("src.pages.clients.ClientDialog") as MockDialog,
+            patch("src.pages.clients.update_client") as mock_update,
+        ):
             page.edit_client_by_id(9999)
         MockDialog.assert_not_called()
         mock_update.assert_not_called()

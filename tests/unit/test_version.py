@@ -24,9 +24,7 @@ else:  # pragma: no cover - exercised only on Python 3.9/3.10
     import tomli as tomllib
 
 
-SEMVER_RE = re.compile(
-    r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$"
-)
+SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
 
 
 # ===========================================================================
@@ -48,9 +46,9 @@ class TestVersionConstant:
         # The auto-update flow compares versions with packaging.version which
         # accepts PEP 440. We tighten to plain semver to keep release tags
         # predictable (``v1.2.3`` / ``v1.2.3-beta.1``).
-        assert SEMVER_RE.match(src.__version__), (
-            f"src.__version__ = {src.__version__!r} is not in X.Y.Z form"
-        )
+        assert SEMVER_RE.match(
+            src.__version__
+        ), f"src.__version__ = {src.__version__!r} is not in X.Y.Z form"
 
 
 # ===========================================================================
@@ -88,12 +86,7 @@ class TestVersionPyprojectSync:
         )
 
     def test_dynamic_version_points_to_src(self, pyproject):
-        dyn = (
-            pyproject.get("tool", {})
-            .get("setuptools", {})
-            .get("dynamic", {})
-            .get("version", {})
-        )
+        dyn = pyproject.get("tool", {}).get("setuptools", {}).get("dynamic", {}).get("version", {})
         assert dyn.get("attr") == "src.__version__", (
             "[tool.setuptools.dynamic].version must read from "
             "`src.__version__` (got {!r})".format(dyn)

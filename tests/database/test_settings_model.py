@@ -12,17 +12,17 @@ import pytest
 from src.database.connection import DatabaseConnection
 from src.database.models.settings import (
     create_settings_table,
-    get_tva,
-    update_tva,
-    get_receipt_number,
-    update_receipt_number,
     get_all_settings,
+    get_receipt_number,
+    get_tva,
+    update_receipt_number,
+    update_tva,
 )
-
 
 # ---------------------------------------------------------------------------
 # Auto-create the singleton settings row for every test
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def settings_table(db):
@@ -32,6 +32,7 @@ def settings_table(db):
 # ===========================================================================
 # TestCreateTable
 # ===========================================================================
+
 
 class TestCreateTable:
     def test_idempotent(self):
@@ -44,15 +45,14 @@ class TestCreateTable:
         assert row["receipt_number"] == 1
 
     def test_only_one_row(self):
-        row = DatabaseConnection().fetchone(
-            "SELECT COUNT(*) AS n FROM settings"
-        )
+        row = DatabaseConnection().fetchone("SELECT COUNT(*) AS n FROM settings")
         assert row["n"] == 1
 
 
 # ===========================================================================
 # TestTva
 # ===========================================================================
+
 
 class TestTva:
     def test_default_tva(self):
@@ -80,6 +80,7 @@ class TestTva:
 # TestReceiptNumber
 # ===========================================================================
 
+
 class TestReceiptNumber:
     def test_default(self):
         assert get_receipt_number() == 1
@@ -101,6 +102,7 @@ class TestReceiptNumber:
 # ===========================================================================
 # TestAllSettings
 # ===========================================================================
+
 
 class TestAllSettings:
     def test_default_contents(self):

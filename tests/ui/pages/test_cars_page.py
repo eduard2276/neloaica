@@ -12,7 +12,6 @@ from unittest.mock import patch
 import pytest
 from PySide6.QtWidgets import QDialog
 
-
 _CLIENTS_FOR_DROPDOWN = [
     {"id": 1, "name": "Alice Owner"},
     {"id": 2, "name": "Bob Driver"},
@@ -26,6 +25,7 @@ def dialog_factory(qapp):
     def _factory(car=None):
         with patch("src.pages.cars.get_clients_for_dropdown", return_value=_CLIENTS_FOR_DROPDOWN):
             from src.pages.cars import CarDialog
+
             return CarDialog(parent=None, car=car)
 
     return _factory
@@ -35,6 +35,7 @@ def dialog_factory(qapp):
 # CarDialog — populate from car dict
 # ===========================================================================
 
+
 class TestCarDialogPopulate:
     def test_add_window_title(self, dialog_factory):
         dlg = dialog_factory()
@@ -42,8 +43,11 @@ class TestCarDialogPopulate:
 
     def test_edit_window_title(self, dialog_factory):
         car = {
-            "client_id": 1, "plate_number": "B-123", "vin": "A" * 17,
-            "model": "M1", "kilometers": 50000,
+            "client_id": 1,
+            "plate_number": "B-123",
+            "vin": "A" * 17,
+            "model": "M1",
+            "kilometers": 50000,
         }
         dlg = dialog_factory(car)
         assert dlg.windowTitle() == "Edit Car"
@@ -69,6 +73,7 @@ class TestCarDialogPopulate:
 # ===========================================================================
 # CarDialog — kilometers formatting
 # ===========================================================================
+
 
 class TestCarDialogKilometers:
     def test_format_kilometers(self, dialog_factory):
@@ -98,6 +103,7 @@ class TestCarDialogKilometers:
 # ===========================================================================
 # CarDialog — validation
 # ===========================================================================
+
 
 class TestCarDialogValidation:
     def _fill_valid(self, dlg):
@@ -204,9 +210,33 @@ class TestCarDialogValidation:
 # ===========================================================================
 
 _CARS_SAMPLE = [
-    {"id": 1, "client_id": 1, "plate_number": "B-1", "vin": "A" * 17, "model": "Audi", "kilometers": 1000, "client_name": "Alice O."},
-    {"id": 2, "client_id": 1, "plate_number": "B-2", "vin": "B" * 17, "model": "BMW",  "kilometers": 2000, "client_name": "Alice O."},
-    {"id": 3, "client_id": 2, "plate_number": "B-3", "vin": "C" * 17, "model": "Audi", "kilometers": 3000, "client_name": "Bob D."},
+    {
+        "id": 1,
+        "client_id": 1,
+        "plate_number": "B-1",
+        "vin": "A" * 17,
+        "model": "Audi",
+        "kilometers": 1000,
+        "client_name": "Alice O.",
+    },
+    {
+        "id": 2,
+        "client_id": 1,
+        "plate_number": "B-2",
+        "vin": "B" * 17,
+        "model": "BMW",
+        "kilometers": 2000,
+        "client_name": "Alice O.",
+    },
+    {
+        "id": 3,
+        "client_id": 2,
+        "plate_number": "B-3",
+        "vin": "C" * 17,
+        "model": "Audi",
+        "kilometers": 3000,
+        "client_name": "Bob D.",
+    },
 ]
 
 
@@ -214,6 +244,7 @@ _CARS_SAMPLE = [
 def cars_page(qapp):
     with patch("src.pages.cars.get_all_cars", return_value=_CARS_SAMPLE):
         from src.pages.cars import CarsPage
+
         return CarsPage()
 
 
@@ -243,13 +274,22 @@ class TestCarsPage:
         assert cars_page.cars_table.rowCount() == 3
 
     def test_add_car_unique_constraint_shows_warning(self, cars_page):
-        with patch("src.pages.cars.CarDialog") as MockDialog, \
-             patch("src.pages.cars.add_car", side_effect=Exception("UNIQUE constraint failed: cars.vin")), \
-             patch("src.pages.cars.show_warning") as warn:
+        with (
+            patch("src.pages.cars.CarDialog") as MockDialog,
+            patch(
+                "src.pages.cars.add_car",
+                side_effect=Exception("UNIQUE constraint failed: cars.vin"),
+            ),
+            patch("src.pages.cars.show_warning") as warn,
+        ):
             dlg = MockDialog.return_value
             dlg.exec.return_value = QDialog.DialogCode.Accepted
             dlg.get_data.return_value = {
-                "client_id": 1, "plate_number": "P", "vin": "X" * 17, "model": "M", "kilometers": 1,
+                "client_id": 1,
+                "plate_number": "P",
+                "vin": "X" * 17,
+                "model": "M",
+                "kilometers": 1,
             }
             cars_page.add_car()
         warn.assert_called_once()
@@ -257,13 +297,19 @@ class TestCarsPage:
         assert "VIN" in msg or "vin" in msg
 
     def test_add_car_unknown_error_shows_critical(self, cars_page):
-        with patch("src.pages.cars.CarDialog") as MockDialog, \
-             patch("src.pages.cars.add_car", side_effect=Exception("boom")), \
-             patch("src.pages.cars.show_critical") as crit:
+        with (
+            patch("src.pages.cars.CarDialog") as MockDialog,
+            patch("src.pages.cars.add_car", side_effect=Exception("boom")),
+            patch("src.pages.cars.show_critical") as crit,
+        ):
             dlg = MockDialog.return_value
             dlg.exec.return_value = QDialog.DialogCode.Accepted
             dlg.get_data.return_value = {
-                "client_id": 1, "plate_number": "P", "vin": "X" * 17, "model": "M", "kilometers": 1,
+                "client_id": 1,
+                "plate_number": "P",
+                "vin": "X" * 17,
+                "model": "M",
+                "kilometers": 1,
             }
             cars_page.add_car()
         crit.assert_called_once()

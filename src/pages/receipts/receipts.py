@@ -1,26 +1,27 @@
 """Receipts page - Table list of receipts with create/edit/delete via browser-like tabs."""
 
 from datetime import datetime
+
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QTableWidget,
-    QTableWidgetItem,
-    QHeaderView,
-    QPushButton,
-    QTabWidget,
-    QMessageBox,
-    QLineEdit,
     QDialog,
     QFormLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt
 
-from src.database.models.receipts import get_all_receipts, delete_receipt
-from src.widgets import NoScrollComboBox
+from src.database.models.receipts import delete_receipt, get_all_receipts
 from src.styles import theme
+from src.widgets import NoScrollComboBox
 
 from .receipt_form import ReceiptFormPage
 
@@ -54,7 +55,9 @@ class ReceiptsPage(QWidget):
         self.tab_widget.addTab(self.list_page, "📋 Receipts List")
 
         # Hide the close button on the pinned list tab
-        self.tab_widget.tabBar().setTabButton(0, self.tab_widget.tabBar().ButtonPosition.RightSide, None)
+        self.tab_widget.tabBar().setTabButton(
+            0, self.tab_widget.tabBar().ButtonPosition.RightSide, None
+        )
 
         layout.addWidget(self.tab_widget)
 
@@ -159,9 +162,17 @@ class ReceiptsPage(QWidget):
         self.receipts_table.verticalHeader().setVisible(False)
         self.receipts_table.verticalHeader().setDefaultSectionSize(50)
         self.receipts_table.setColumnCount(7)
-        self.receipts_table.setHorizontalHeaderLabels([
-            "ID", "Client", "Car", "Date", "Grand Total", "Status", "Actions",
-        ])
+        self.receipts_table.setHorizontalHeaderLabels(
+            [
+                "ID",
+                "Client",
+                "Car",
+                "Date",
+                "Grand Total",
+                "Status",
+                "Actions",
+            ]
+        )
         self.receipts_table.doubleClicked.connect(self._on_table_double_click)
 
         layout.addWidget(self.receipts_table)
@@ -186,22 +197,20 @@ class ReceiptsPage(QWidget):
 
         if self.active_status_filter != "All":
             filtered = [
-                r for r in filtered
-                if r.get('status', 'Ongoing') == self.active_status_filter
+                r for r in filtered if r.get("status", "Ongoing") == self.active_status_filter
             ]
 
         if search_text:
             filtered = [
-                r for r in filtered
-                if search_text in r.get('client_name', '').lower()
-                or search_text in r.get('car_model', '').lower()
+                r
+                for r in filtered
+                if search_text in r.get("client_name", "").lower()
+                or search_text in r.get("car_model", "").lower()
             ]
 
         # Sort according to the selected option in sort_combo.
         sort_text = (
-            self.sort_combo.currentText()
-            if hasattr(self, 'sort_combo')
-            else "Date: Newest first"
+            self.sort_combo.currentText() if hasattr(self, "sort_combo") else "Date: Newest first"
         )
 
         if sort_text.startswith("Date:"):
@@ -210,7 +219,7 @@ class ReceiptsPage(QWidget):
 
             def _date_key(r):
                 try:
-                    return datetime.strptime(r.get('date', ''), "%d.%m.%Y")
+                    return datetime.strptime(r.get("date", ""), "%d.%m.%Y")
                 except ValueError:
                     return invalid_sentinel
 
@@ -219,23 +228,23 @@ class ReceiptsPage(QWidget):
         elif sort_text == "Grand Total: High to low":
             filtered = sorted(
                 filtered,
-                key=lambda r: float(r.get('grand_total') or 0),
+                key=lambda r: float(r.get("grand_total") or 0),
                 reverse=True,
             )
         elif sort_text == "Grand Total: Low to high":
             filtered = sorted(
                 filtered,
-                key=lambda r: float(r.get('grand_total') or 0),
+                key=lambda r: float(r.get("grand_total") or 0),
             )
         elif sort_text == "Client: A to Z":
             filtered = sorted(
                 filtered,
-                key=lambda r: r.get('client_name', '').lower(),
+                key=lambda r: r.get("client_name", "").lower(),
             )
         elif sort_text == "Client: Z to A":
             filtered = sorted(
                 filtered,
-                key=lambda r: r.get('client_name', '').lower(),
+                key=lambda r: r.get("client_name", "").lower(),
                 reverse=True,
             )
 
@@ -303,9 +312,7 @@ class ReceiptsPage(QWidget):
             edit_btn = QPushButton("✏️")
             edit_btn.setStyleSheet(theme.button_icon("edit"))
             edit_btn.setToolTip("Edit receipt")
-            edit_btn.clicked.connect(
-                lambda checked, rid=receipt_id: self.edit_receipt(rid)
-            )
+            edit_btn.clicked.connect(lambda checked, rid=receipt_id: self.edit_receipt(rid))
             actions_layout.addWidget(edit_btn)
 
             delete_btn = QPushButton("🗑️")
@@ -400,8 +407,7 @@ class ReceiptsPage(QWidget):
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle("Unsaved Changes")
             msg_box.setText(
-                "This receipt has unsaved changes.\n"
-                "Are you sure you want to close it?"
+                "This receipt has unsaved changes.\n" "Are you sure you want to close it?"
             )
             msg_box.setIcon(QMessageBox.Icon.Warning)
             msg_box.setStandardButtons(
@@ -452,13 +458,10 @@ class ReceiptsPage(QWidget):
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Confirm Delete")
         msg_box.setText(
-            f"Are you sure you want to delete receipt #{receipt_id} "
-            f"for {client_name}?"
+            f"Are you sure you want to delete receipt #{receipt_id} " f"for {client_name}?"
         )
         msg_box.setIcon(QMessageBox.Icon.Question)
-        msg_box.setStandardButtons(
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg_box.setDefaultButton(QMessageBox.StandardButton.No)
         msg_box.setStyleSheet(theme.message_box_confirm())
 
@@ -482,12 +485,12 @@ class ReceiptsPage(QWidget):
         except (ValueError, TypeError):
             return "0.00"
         integer_part = int(num)
-        decimal_part = f"{num:.2f}".split('.')[1]
-        formatted = ''
+        decimal_part = f"{num:.2f}".split(".")[1]
+        formatted = ""
         int_str = str(integer_part)
         for i, d in enumerate(reversed(int_str)):
             if i > 0 and i % 3 == 0:
-                formatted = ' ' + formatted
+                formatted = " " + formatted
             formatted = d + formatted
         return f"{formatted}.{decimal_part}"
 
@@ -516,7 +519,11 @@ class FilterDialog(QDialog):
         self.status_combo.setStyleSheet(theme.combobox())
         for option in self.STATUS_OPTIONS:
             self.status_combo.addItem(option)
-        idx = self.STATUS_OPTIONS.index(current_status) if current_status in self.STATUS_OPTIONS else 0
+        idx = (
+            self.STATUS_OPTIONS.index(current_status)
+            if current_status in self.STATUS_OPTIONS
+            else 0
+        )
         self.status_combo.setCurrentIndex(idx)
         form_layout.addRow("Status:", self.status_combo)
 

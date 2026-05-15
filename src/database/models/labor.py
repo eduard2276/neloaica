@@ -18,12 +18,12 @@ def create_labor_table():
 def populate_labor_mock_data():
     """Populate labor with mock data."""
     db = DatabaseConnection()
-    
+
     # Check if data already exists
     existing = db.fetchone("SELECT COUNT(*) as count FROM labor")
     if existing and existing["count"] > 0:
         return  # Data already exists
-    
+
     # Insert mock labor services
     services = [
         ("Oil Change",),
@@ -39,11 +39,8 @@ def populate_labor_mock_data():
         ("AC Recharge",),
         ("Timing Belt Replacement",),
     ]
-    
-    db.executemany(
-        "INSERT INTO labor (service_name) VALUES (?)",
-        services
-    )
+
+    db.executemany("INSERT INTO labor (service_name) VALUES (?)", services)
     db.commit()
 
 
@@ -62,10 +59,7 @@ def get_labor_by_id(labor_id: int) -> dict | None:
 def add_labor(service_name: str) -> int:
     """Add a new labor service and return the ID."""
     db = DatabaseConnection()
-    cursor = db.execute(
-        "INSERT INTO labor (service_name) VALUES (?)",
-        (service_name,)
-    )
+    cursor = db.execute("INSERT INTO labor (service_name) VALUES (?)", (service_name,))
     db.commit()
     return cursor.lastrowid
 
@@ -82,10 +76,7 @@ def get_labor_by_name(service_name: str) -> dict | None:
 def update_labor(labor_id: int, service_name: str):
     """Update an existing labor service."""
     db = DatabaseConnection()
-    db.execute(
-        "UPDATE labor SET service_name = ? WHERE id = ?",
-        (service_name, labor_id)
-    )
+    db.execute("UPDATE labor SET service_name = ? WHERE id = ?", (service_name, labor_id))
     db.commit()
 
 

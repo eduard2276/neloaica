@@ -1,27 +1,27 @@
 """Employees page."""
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QTableWidget,
-    QTableWidgetItem,
-    QHeaderView,
-    QLineEdit,
-    QPushButton,
     QDialog,
     QFormLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
     QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt
 
 from src.database.models import (
-    get_all_employees,
     add_employee,
-    update_employee,
     delete_employee,
+    get_all_employees,
     get_employee_by_name,
+    update_employee,
 )
 from src.styles import theme
 from src.utils import show_warning
@@ -181,7 +181,8 @@ class EmployeesPage(QWidget):
             filtered = self.all_employees
         else:
             filtered = [
-                emp for emp in self.all_employees
+                emp
+                for emp in self.all_employees
                 if search_text in emp["first_name"].lower()
                 or search_text in emp["last_name"].lower()
                 or search_text in f"{emp['first_name']} {emp['last_name']}".lower()
@@ -235,8 +236,9 @@ class EmployeesPage(QWidget):
             existing = get_employee_by_name(data["first_name"], data["last_name"])
             if existing:
                 show_warning(
-                    self, "Duplicate Entry",
-                    f"An employee named '{existing['first_name']} {existing['last_name']}' already exists."
+                    self,
+                    "Duplicate Entry",
+                    f"An employee named '{existing['first_name']} {existing['last_name']}' already exists.",
                 )
                 return
             add_employee(data["first_name"], data["last_name"])
@@ -266,8 +268,9 @@ class EmployeesPage(QWidget):
             existing = get_employee_by_name(data["first_name"], data["last_name"])
             if existing and existing["id"] != employee_id:
                 show_warning(
-                    self, "Duplicate Entry",
-                    f"An employee named '{existing['first_name']} {existing['last_name']}' already exists."
+                    self,
+                    "Duplicate Entry",
+                    f"An employee named '{existing['first_name']} {existing['last_name']}' already exists.",
                 )
                 return
             update_employee(emp["id"], data["first_name"], data["last_name"])
@@ -282,13 +285,9 @@ class EmployeesPage(QWidget):
 
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Confirm Delete")
-        msg_box.setText(
-            f"Are you sure you want to delete {emp['first_name']} {emp['last_name']}?"
-        )
+        msg_box.setText(f"Are you sure you want to delete {emp['first_name']} {emp['last_name']}?")
         msg_box.setIcon(QMessageBox.Icon.Question)
-        msg_box.setStandardButtons(
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg_box.setDefaultButton(QMessageBox.StandardButton.No)
         msg_box.setStyleSheet(theme.message_box_confirm())
 
