@@ -53,9 +53,9 @@ class SettingsPage(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
 
-        # Title
+        # Title — overridden in blue to demo the auto-update path (PR #8).
         title = QLabel("Settings")
-        title.setStyleSheet(self.theme.page_title())
+        title.setStyleSheet(self.theme.page_title() + "color: #1565c0;")
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(title)
 
