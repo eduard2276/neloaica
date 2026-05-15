@@ -66,18 +66,118 @@ python -m pytest --cov=src --cov-report=term-missing
 pip install pyinstaller
 
 # Build folosind spec-ul existent (recomandat)
-pyinstaller neloaica.spec --noconfirm
-
-# Sau folosind scriptul bat inclus
-.\build.bat
+python -m PyInstaller --noconfirm --clean Neloaica.spec
 
 # Executabilul generat se află la:
 #   dist\Neloaica\Neloaica.exe
+# Template-ul Excel ajunge la:
+#   dist\Neloaica\_internal\templates\Template-deviz.xlsx
 ```
 
 > **Notă:** Dacă apare un `PermissionError` legat de OneDrive care blochează fișiere
 > temporare din `build\`, build-ul se finalizează totuși cu succes.
 > Verifică existența `dist\Neloaica\Neloaica.exe` după build.
+
+> În repo există și un `build.bat` (gitignored, local-only) care face același
+> lucru — îl poți recrea cu un singur `python -m PyInstaller ...`.
+
+---
+
+## Release (publicare versiune nouă)
+
+Pipeline-ul de release este complet automatizat prin `.github/workflows/release.yml`.
+**Singurul lucru de făcut local este să bump-uiești versiunea și să împingi un tag.**
+
+Workflow-ul:
+1. Pornește doar la push de tag `vX.Y.Z` (SemVer strict).
+2. Verifică că tag-ul se potrivește exact cu `__version__` din `src/__init__.py`.
+3. Construiește bundle PyInstaller (onedir) pe `windows-latest` cu Python 3.12.
+4. Sanity-check: confirmă că `Neloaica.exe` și template-ul Excel sunt în `dist/Neloaica/`.
+5. Comprimă bundle-ul ca `Neloaica-vX.Y.Z-windows.zip`.
+6. Atașează ZIP-ul la un GitHub Release nou (sau actualizează cel existent).
+
+### Pașii pentru un release nou
+
+```powershell
+# 0. Asigură-te că ești pe main, sincronizat cu remote și fără modificări locale
+git checkout main
+git pull origin main
+git status                       # trebuie să fie "working tree clean"
+
+# 1. Bump versiunea în UN SINGUR LOC: src/__init__.py
+#    (pyproject.toml citește dinamic de acolo)
+#    Exemplu pentru 1.0.0 → 1.0.1:
+#       __version__ = "1.0.1"
+#    Vezi nota despre SemVer mai jos.
+
+# 2. Verifică local că totul trece înainte de tag (recomandat)
+python -m black --check src/ tests/ scripts/
+python -m isort  --check src/ tests/ scripts/
+python -m flake8 src/ tests/ scripts/
+$env:QT_QPA_PLATFORM = "offscreen"
+python -m pytest -q
+
+# 3. Commit cu mesaj standardizat
+git add src/__init__.py
+git commit -m "Bump version to 1.0.1"
+git push origin main
+
+# 4. Creează tag SemVer (DEVE să înceapă cu "v")
+git tag -a v1.0.1 -m "Release v1.0.1"
+git push origin v1.0.1
+
+# 5. Urmărește build-ul în GitHub Actions
+gh run watch                     # afișează jobul în terminal până se termină
+# sau deschide în browser:
+gh run list --workflow=release.yml --limit 1
+
+# 6. După succes, link-ul Release apare aici:
+gh release view v1.0.1
+gh release view v1.0.1 --web     # deschide direct în browser
+```
+
+### SemVer — cum alegi numărul
+
+- **PATCH** (`1.0.0 → 1.0.1`) — bugfix-uri compatibile, fără modificare de schemă DB sau API.
+- **MINOR** (`1.0.0 → 1.1.0`) — feature nou compatibil cu datele existente.
+- **MAJOR** (`1.0.0 → 2.0.0`) — migrare DB obligatorie sau breaking change vizibil utilizatorului.
+
+### Troubleshooting
+
+| Simptom | Cauză | Fix |
+|---|---|---|
+| Workflow eșuează la pasul **Verify tag matches src/__version__** | Ai uitat să bump-uiezi `src/__init__.py` înainte de tag | Șterge tag-ul (vezi mai jos), bump versiunea, recreează tag-ul |
+| Workflow eșuează la **Sanity check the bundle** | PyInstaller a rulat dar n-a inclus template-ul Excel | Verifică că `templates/Template-deviz.xlsx` există în repo și că `Neloaica.spec` îl include în `datas` |
+| **release.yml nu se declanșează** | Tag-ul nu respectă formatul `v*.*.*` (ex: `1.0.1` fără `v`, sau `v1.0.1-beta`) | Folosește strict `vX.Y.Z` cu numere întregi |
+| **GitHub Release nu apare** dar workflow trecut | Permisiunea `contents: write` nu e activă pe repo | Settings → Actions → General → Workflow permissions → "Read and write permissions" |
+
+### Anularea unui tag greșit
+
+```powershell
+# Șterge tag-ul local
+git tag -d v1.0.1
+
+# Șterge tag-ul de pe remote (asta NU oprește un workflow deja pornit;
+# pentru asta foloseste `gh run cancel <run-id>`)
+git push --delete origin v1.0.1
+
+# Dacă workflow-ul a apucat să creeze un GitHub Release defect:
+gh release delete v1.0.1 --yes --cleanup-tag
+```
+
+### Livrare către utilizator
+
+După ce release-ul e publicat:
+
+```powershell
+# Copiază link-ul de download al ZIP-ului
+gh release view v1.0.1 --json assets --jq '.assets[].url'
+```
+
+Trimite utilizatorului link-ul → descarcă ZIP-ul → dezarhivează unde vrea → rulează `Neloaica.exe`.
+**La prima pornire**, aplicația migrează automat orice `neloaica.db` și folder `backups/`
+existente lângă vechiul `.exe` în `%LOCALAPPDATA%\Neloaica\` (vezi log-ul din
+`%LOCALAPPDATA%\Neloaica\logs\neloaica.log`).
 
 ---
 
@@ -172,11 +272,10 @@ git diff
 
 # Vizualizează diferențele fișierelor staged
 git diff --staged
-
-# Creează un tag de versiune
-git tag -a v1.0.0 -m "Release v1.0.0"
-git push origin v1.0.0
 ```
+
+> Pentru tag-uri de versiune și release-uri, vezi secțiunea
+> [Release (publicare versiune nouă)](#release-publicare-versiune-nouă).
 
 ---
 
