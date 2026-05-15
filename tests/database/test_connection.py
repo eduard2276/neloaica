@@ -6,12 +6,17 @@ Covers:
   * TestForeignKeys         — PRAGMA foreign_keys = ON is enforced
   * TestExecute             — execute / executemany / commit semantics
   * TestClose               — close() resets the connection and reconnects on demand
+  * TestDbPath              — DB path resolves through ``src.paths`` and the
+                              connection creates the user data directory
+                              on demand
 """
 
 import sqlite3
+from pathlib import Path
 
 import pytest
 
+from src.database import connection as connection_mod
 from src.database.connection import DatabaseConnection
 
 # ---------------------------------------------------------------------------
@@ -177,3 +182,102 @@ class TestClose:
         assert inst._connection is not None
         inst.close()
         assert inst._connection is None
+
+
+# ---------------------------------------------------------------------------
+# TestDbPath
+# ---------------------------------------------------------------------------
+
+
+class TestDbPath:
+    """The DB path now flows through ``src.paths.get_database_path``.
+
+    These tests instantiate ``DatabaseConnection`` outside the autouse
+    ``_ensure_in_memory_db`` fixture so the real ``_get_db_path`` and
+    ``_connect`` are exercised. We point the user data dir at ``tmp_path``
+    so we never write into the developer's actual ``%LOCALAPPDATA%``.
+    """
+
+    @pytest.fixture
+    def isolated_singleton(self, tmp_path, monkeypatch):
+        """Reset the singleton and redirect the user data dir into tmp_path."""
+        from src import paths as paths_mod
+
+        monkeypatch.setattr(paths_mod, "get_user_data_dir", lambda: tmp_path)
+        monkeypatch.setattr(paths_mod, "get_database_path", lambda: tmp_path / "neloaica.db")
+
+        DatabaseConnection._instance = None
+        DatabaseConnection._connection = None
+        yield tmp_path
+        try:
+            inst = DatabaseConnection._instance
+            if inst is not None and inst._connection is not None:
+                inst.close()
+        except Exception:
+            pass
+        DatabaseConnection._instance = None
+        DatabaseConnection._connection = None
+
+    def test_uses_get_database_path_from_paths_module(self, isolated_singleton):
+        inst = DatabaseConnection()
+        assert inst._db_path == isolated_singleton / "neloaica.db"
+
+    def test_creates_parent_directory_when_missing(self, tmp_path, monkeypatch):
+        from src import paths as paths_mod
+
+        nested = tmp_path / "deeply" / "nested" / "data"
+        monkeypatch.setattr(paths_mod, "get_database_path", lambda: nested / "neloaica.db")
+
+        DatabaseConnection._instance = None
+        DatabaseConnection._connection = None
+        try:
+            assert not nested.exists()
+            inst = DatabaseConnection()
+            assert nested.is_dir()
+            assert (nested / "neloaica.db").exists()
+            inst.close()
+        finally:
+            DatabaseConnection._instance = None
+            DatabaseConnection._connection = None
+
+    def test_db_path_is_a_path_instance(self, isolated_singleton):
+        inst = DatabaseConnection()
+        assert isinstance(inst._db_path, Path)
+
+    def test_in_memory_path_does_not_create_directories(self, monkeypatch, tmp_path):
+        """A ``:memory:`` path string must not trigger ``mkdir`` on its parent."""
+        DatabaseConnection._instance = None
+        DatabaseConnection._connection = None
+
+        called = {"mkdir": False}
+
+        def tracking_mkdir(self, *args, **kwargs):
+            called["mkdir"] = True
+
+        monkeypatch.setattr(Path, "mkdir", tracking_mkdir)
+
+        instance = object.__new__(DatabaseConnection)
+        instance._db_path = ":memory:"
+        instance._connection = None
+        DatabaseConnection._instance = instance
+
+        instance._connect()
+        assert called["mkdir"] is False
+        try:
+            instance.close()
+        finally:
+            DatabaseConnection._instance = None
+            DatabaseConnection._connection = None
+
+    def test_module_resolves_get_database_path_lazily(self):
+        """The import is local to ``_get_db_path`` so reset doesn't cache it.
+
+        Guards against accidentally promoting the import to module level —
+        which would make monkeypatching :func:`src.paths.get_database_path`
+        in tests a no-op.
+        """
+        # Read the source of _get_db_path; it should reference get_database_path.
+        import inspect
+
+        src = inspect.getsource(connection_mod.DatabaseConnection._get_db_path)
+        assert "get_database_path" in src

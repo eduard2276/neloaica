@@ -3,6 +3,7 @@ Neloaica - PySide6 Desktop Application
 Main entry point for the application.
 """
 
+import logging
 import sys
 
 from PySide6.QtCore import Qt
@@ -31,8 +32,11 @@ from src.pages import (
     ReceiptsPage,
     SettingsPage,
 )
-from src.services import create_backup, should_create_daily_backup
+from src.paths import get_app_dir, get_database_path, migrate_legacy_db
+from src.services import create_backup, setup_logging, should_create_daily_backup
 from src.styles import theme
+
+logger = logging.getLogger(__name__)
 
 
 class Sidebar(QWidget):
@@ -48,13 +52,11 @@ class Sidebar(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # App title
         title = QLabel("Neloaica")
         title.setStyleSheet(theme.sidebar_title())
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
-        # Navigation list
         self.nav_list = QListWidget()
         self.nav_list.addItem(QListWidgetItem("👥  Clients"))
         self.nav_list.addItem(QListWidgetItem("🚗  Cars"))
@@ -77,7 +79,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Neloaica")
         self.setMinimumSize(800, 600)
 
-        # Create central widget and layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
@@ -85,7 +86,6 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Create stacked widget for pages
         self.pages = QStackedWidget()
         self.pages.addWidget(ClientsPage())
         self.pages.addWidget(CarsPage())
@@ -96,17 +96,14 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(ReceiptsPage())
         self.pages.addWidget(SettingsPage())
 
-        # Create sidebar
         self.sidebar = Sidebar(self.change_page)
 
-        # Content area styling
         content_frame = QFrame()
         content_frame.setStyleSheet(theme.content_area())
         content_layout = QVBoxLayout(content_frame)
         content_layout.setContentsMargins(30, 30, 30, 30)
         content_layout.addWidget(self.pages)
 
-        # Add widgets to main layout
         layout.addWidget(self.sidebar)
         layout.addWidget(content_frame, 1)
 
@@ -115,29 +112,51 @@ class MainWindow(QMainWindow):
         self.pages.setCurrentIndex(index)
 
 
+def bootstrap() -> None:
+    """Run the non-Qt startup sequence: logging, DB migration, schema, backups.
+
+    Split out from :func:`main` so it can be unit-tested without spinning up
+    a real ``QApplication``. The order matters:
+
+    1. **Logging first.** Anything that runs after this can call
+       ``logger.info(...)`` and have it land in the rotating log file.
+    2. **Migrate legacy DB.** Older builds wrote ``neloaica.db`` next to the
+       executable. We move it into the user data dir before opening any
+       connection so the singleton picks up the migrated file.
+    3. **Initialise the schema.** ``init_database`` is idempotent — it only
+       creates tables that don't already exist.
+    4. **Backups.** A startup snapshot plus a daily one if none exists yet.
+    """
+    log_file = setup_logging()
+    logger.info("Neloaica %s starting up", __version__)
+    logger.info("Logs: %s", log_file)
+
+    legacy_db = get_app_dir() / "neloaica.db"
+    new_db = get_database_path()
+    if legacy_db != new_db and migrate_legacy_db(legacy_db, new_db):
+        logger.info("Migrated legacy DB from %s to %s", legacy_db, new_db)
+
+    init_database()
+
+    logger.info("Creating startup backup...")
+    create_backup("startup")
+
+    if should_create_daily_backup():
+        logger.info("Creating daily automatic backup...")
+        create_backup("auto")
+    else:
+        logger.info("Daily backup already exists for today.")
+
+
 def main():
     """Application entry point."""
     app = QApplication(sys.argv)
 
-    # Set application metadata
     app.setApplicationName("Neloaica")
     app.setOrganizationName("Nokia")
     app.setApplicationVersion(__version__)
 
-    # Initialize database (create tables if they don't exist)
-    init_database()
-
-    # Create automatic backups
-    # 1. Backup on startup
-    print("[INFO] Creating startup backup...")
-    create_backup("startup")
-
-    # 2. Daily automatic backup (if not already created today)
-    if should_create_daily_backup():
-        print("[INFO] Creating daily automatic backup...")
-        create_backup("auto")
-    else:
-        print("[INFO] Daily backup already exists for today.")
+    bootstrap()
 
     window = MainWindow()
     window.show()
