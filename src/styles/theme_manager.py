@@ -438,6 +438,18 @@ class ThemeManager:
             padding: 20px;
         """
 
+    def sidebar_logo(self) -> str:
+        """Style for the sidebar logo image container.
+
+        Hard-coded pure black background so the logo art (which is
+        designed on a black background) blends seamlessly into the
+        sidebar header instead of showing a dark-grey gap.
+        """
+        return """
+            background-color: #000000;
+            padding: 12px;
+        """
+
     def sidebar_button(self) -> str:
         """Style for sidebar navigation buttons."""
         return f"""

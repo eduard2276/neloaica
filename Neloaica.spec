@@ -19,6 +19,11 @@ block_cipher = None
 
 PROJECT_ROOT = Path(".").resolve()
 
+# Path to the multi-resolution Windows icon embedded into Neloaica.exe.
+# Resolved up-front (rather than inline below) so the spec fails loudly
+# if the icon goes missing instead of silently producing a bare .exe.
+APP_ICON = PROJECT_ROOT / "templates" / "images" / "Neloaica_logo.ico"
+
 
 def _data_files():
     """Bundle templates and template assets next to the executable.
@@ -72,7 +77,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    icon=str(APP_ICON),
 )
 
 coll = COLLECT(
