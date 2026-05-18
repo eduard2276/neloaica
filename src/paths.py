@@ -91,6 +91,31 @@ def get_logs_dir() -> Path:
     return get_user_data_dir() / "logs"
 
 
+def get_logo_png_path() -> Path:
+    """Path to the application logo bitmap.
+
+    The PNG ships under ``templates/images/`` and is mirrored into the
+    PyInstaller bundle by :data:`Neloaica.spec`. The same path resolves
+    against the project root in dev mode and against ``_MEIPASS`` in
+    frozen mode, so callers can use it for both.
+
+    Used for the in-app sidebar header where Qt's smooth pixmap
+    scaling gives a better result than the multi-resolution ICO.
+    """
+    return get_bundle_dir() / "templates" / "images" / "Neloaica_logo.png"
+
+
+def get_logo_ico_path() -> Path:
+    """Path to the multi-resolution application icon.
+
+    Preferred for :meth:`QApplication.setWindowIcon` (and the
+    PyInstaller ``EXE(icon=...)`` build hint) because Windows pulls
+    the correct size for the taskbar, alt-tab, title bar and tray
+    out of a single ``.ico``.
+    """
+    return get_bundle_dir() / "templates" / "images" / "Neloaica_logo.ico"
+
+
 def get_database_path() -> Path:
     """Absolute path of the SQLite database file."""
     return get_user_data_dir() / "neloaica.db"

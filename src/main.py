@@ -7,6 +7,7 @@ import logging
 import sys
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -36,11 +37,18 @@ from src.paths import (
     get_app_dir,
     get_backups_dir,
     get_database_path,
+    get_logo_ico_path,
+    get_logo_png_path,
     migrate_legacy_db,
     migrate_legacy_dir,
 )
 from src.services import create_backup, setup_logging, should_create_daily_backup
 from src.styles import theme
+
+#: Width the sidebar logo pixmap is scaled to. Matches the sidebar
+#: minimum width (200 px) minus the 12 px padding declared in
+#: ``theme.sidebar_logo()`` on each side.
+SIDEBAR_LOGO_WIDTH = 176
 
 logger = logging.getLogger(__name__)
 
@@ -58,23 +66,54 @@ class Sidebar(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        title = QLabel("Neloaica")
-        title.setStyleSheet(theme.sidebar_title())
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title = self._build_title_widget()
         layout.addWidget(title)
 
-        self.nav_list = QListWidget()
-        self.nav_list.addItem(QListWidgetItem("👥  Clients"))
-        self.nav_list.addItem(QListWidgetItem("🚗  Cars"))
-        self.nav_list.addItem(QListWidgetItem("⚙️  Labor"))
-        self.nav_list.addItem(QListWidgetItem("🔧  Parts"))
-        self.nav_list.addItem(QListWidgetItem("⚠️  Defects"))
-        self.nav_list.addItem(QListWidgetItem("🧑‍💼  Employees"))
-        self.nav_list.addItem(QListWidgetItem("🧾  Receipts"))
-        self.nav_list.addItem(QListWidgetItem("⚙️  Settings"))
-        self.nav_list.setCurrentRow(0)
-        self.nav_list.currentRowChanged.connect(self.on_page_changed)
+        self.nav_list = self._build_nav_list()
         layout.addWidget(self.nav_list)
+
+    def _build_title_widget(self) -> QLabel:
+        """Return the sidebar header — logo image when available, text fallback.
+
+        The PNG is the preferred asset because Qt's pixmap scaling
+        anti-aliases noticeably better than rasterising the ``.ico``.
+        If the asset is missing (e.g. a contributor cloned the repo
+        without the ``templates/images/`` folder, or a partial
+        install) we fall back to the original text title so the app
+        still has *something* in the sidebar header.
+        """
+        title = QLabel()
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_path = get_logo_png_path()
+        if logo_path.exists():
+            pixmap = QPixmap(str(logo_path))
+            if not pixmap.isNull():
+                scaled = pixmap.scaledToWidth(
+                    SIDEBAR_LOGO_WIDTH,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                title.setPixmap(scaled)
+                title.setStyleSheet(theme.sidebar_logo())
+                return title
+        # Fallback path — keep the old text title.
+        title.setText("Neloaica")
+        title.setStyleSheet(theme.sidebar_title())
+        return title
+
+    def _build_nav_list(self) -> QListWidget:
+        """Build the navigation list with all the page entries."""
+        nav_list = QListWidget()
+        nav_list.addItem(QListWidgetItem("👥  Clients"))
+        nav_list.addItem(QListWidgetItem("🚗  Cars"))
+        nav_list.addItem(QListWidgetItem("⚙️  Labor"))
+        nav_list.addItem(QListWidgetItem("🔧  Parts"))
+        nav_list.addItem(QListWidgetItem("⚠️  Defects"))
+        nav_list.addItem(QListWidgetItem("🧑‍💼  Employees"))
+        nav_list.addItem(QListWidgetItem("🧾  Receipts"))
+        nav_list.addItem(QListWidgetItem("⚙️  Settings"))
+        nav_list.setCurrentRow(0)
+        nav_list.currentRowChanged.connect(self.on_page_changed)
+        return nav_list
 
 
 class MainWindow(QMainWindow):
@@ -166,6 +205,24 @@ def bootstrap() -> None:
         logger.info("Daily backup already exists for today.")
 
 
+def _resolve_app_icon() -> QIcon:
+    """Resolve the application icon, preferring the multi-resolution ``.ico``.
+
+    Windows uses the icon for the taskbar, alt-tab, title bar and tray.
+    The ``.ico`` ships multiple sizes (16/32/48/256) so Qt can pick the
+    sharpest one for each surface. If only the PNG is available (e.g.
+    a non-Windows install missing the ``.ico``) we fall back to it.
+    Returns an empty :class:`QIcon` if neither asset exists — Qt's
+    ``setWindowIcon`` is a no-op in that case.
+    """
+    for candidate in (get_logo_ico_path(), get_logo_png_path()):
+        if candidate.exists():
+            icon = QIcon(str(candidate))
+            if not icon.isNull():
+                return icon
+    return QIcon()
+
+
 def main():
     """Application entry point."""
     app = QApplication(sys.argv)
@@ -173,6 +230,7 @@ def main():
     app.setApplicationName("Neloaica")
     app.setOrganizationName("Neloaica Project")
     app.setApplicationVersion(__version__)
+    app.setWindowIcon(_resolve_app_icon())
 
     bootstrap()
 

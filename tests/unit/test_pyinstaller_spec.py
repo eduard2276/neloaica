@@ -130,6 +130,32 @@ class TestExe:
         assert isinstance(debug, ast.Constant)
         assert debug.value is False
 
+    def test_exe_has_icon_kwarg(self, spec_ast):
+        # PyInstaller embeds the .ico into the resulting .exe so Windows
+        # Explorer and the taskbar show the branded icon. Regression
+        # guard against accidentally setting it back to None.
+        exe = _find_call(spec_ast, "EXE")
+        icon = _kw(exe, "icon")
+        # The value is a call (``str(APP_ICON)``) — not a literal — so
+        # we cannot ast.literal_eval it. Asserting it is *not* a
+        # Constant(None) is enough to prevent the regression.
+        if isinstance(icon, ast.Constant):
+            assert icon.value is not None, "EXE(icon=...) must not be None — set the .ico path"
+
+    def test_exe_icon_references_neloaica_ico(self, spec_text):
+        # Sanity check on the raw spec text. We can't introspect the
+        # final string after the ``str(...)`` call without executing
+        # PyInstaller globals, so we match on the filename instead.
+        assert "Neloaica_logo.ico" in spec_text
+
+    def test_app_icon_file_exists(self):
+        # The icon path baked into the spec must actually exist;
+        # otherwise PyInstaller fails loudly with a confusing
+        # "FileNotFoundError" deep in the build. Better to surface
+        # the missing asset at test time.
+        icon_file = SPEC_PATH.parent / "templates" / "images" / "Neloaica_logo.ico"
+        assert icon_file.is_file(), f"App icon missing on disk: {icon_file}"
+
 
 # ===========================================================================
 # TestCollect

@@ -372,3 +372,59 @@ class TestProjectStructure:
         # The Excel export uses this file
         tpl = paths.get_bundle_dir() / "templates" / "Template-deviz.xlsx"
         assert tpl.is_file()
+
+
+# ===========================================================================
+# TestLogoPaths
+# ===========================================================================
+
+
+class TestLogoPaths:
+    """Logo assets live under ``templates/images/`` and must be
+    resolvable both in dev mode and after PyInstaller bundles them
+    under ``_MEIPASS``."""
+
+    def test_png_path_under_templates_images(self):
+        assert paths.get_logo_png_path() == (
+            paths.get_bundle_dir() / "templates" / "images" / "Neloaica_logo.png"
+        )
+
+    def test_ico_path_under_templates_images(self):
+        assert paths.get_logo_ico_path() == (
+            paths.get_bundle_dir() / "templates" / "images" / "Neloaica_logo.ico"
+        )
+
+    def test_png_returns_path(self):
+        assert isinstance(paths.get_logo_png_path(), Path)
+
+    def test_ico_returns_path(self):
+        assert isinstance(paths.get_logo_ico_path(), Path)
+
+    def test_png_resolves_against_meipass_when_frozen(self):
+        fake_dir = "C:/tmp/_MEI12345"
+        with (
+            patch.object(sys, "frozen", True, create=True),
+            patch.object(sys, "_MEIPASS", fake_dir, create=True),
+        ):
+            assert paths.get_logo_png_path() == (
+                Path(fake_dir) / "templates" / "images" / "Neloaica_logo.png"
+            )
+
+    def test_ico_resolves_against_meipass_when_frozen(self):
+        fake_dir = "C:/tmp/_MEI12345"
+        with (
+            patch.object(sys, "frozen", True, create=True),
+            patch.object(sys, "_MEIPASS", fake_dir, create=True),
+        ):
+            assert paths.get_logo_ico_path() == (
+                Path(fake_dir) / "templates" / "images" / "Neloaica_logo.ico"
+            )
+
+    def test_logo_png_file_exists_in_repo(self):
+        # Branding asset must ship with the repo — otherwise the sidebar
+        # silently falls back to the text title and the spec file's
+        # ``icon=...`` reference becomes a broken path.
+        assert paths.get_logo_png_path().is_file()
+
+    def test_logo_ico_file_exists_in_repo(self):
+        assert paths.get_logo_ico_path().is_file()
