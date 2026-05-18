@@ -496,17 +496,24 @@ class ThemeManager:
     def info_label(self) -> str:
         """Style for read-only info labels inside group boxes.
 
-        White background with dark text — used for the current
+        White background with black text — used for the current
         version, backup description, update status, etc. so the
         copy stays legible against any group box background.
+
+        ``min-height`` is set explicitly so Qt does not under-size
+        the label when the stylesheet padding is taken into account
+        (without it the top of letters with ascenders gets clipped
+        on Windows DPI-scaled displays).
         """
         return f"""
             QLabel {{
                 background-color: {self._colors['bg_primary']};
-                color: {self._colors['text_primary']};
-                font-size: 13px;
-                padding: 6px 10px;
+                color: #000000;
+                font-size: 14px;
+                font-weight: 500;
+                padding: 8px 12px;
                 border-radius: 4px;
+                min-height: 18px;
             }}
         """
 
