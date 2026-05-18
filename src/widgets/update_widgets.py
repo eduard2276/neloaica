@@ -44,6 +44,7 @@ from src.services.updater import (
     UpdateInfo,
     UpdateOrchestrator,
 )
+from src.styles.theme_manager import ThemeManager
 
 logger = logging.getLogger(__name__)
 
@@ -172,9 +173,14 @@ class UpdateProgressDialog(QDialog):
         parent: Optional[QObject] = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle(f"Descarc Neloaica v{info.version}")
+        self.setWindowTitle(f"Downloading Neloaica v{info.version}")
         self.setModal(True)
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(460)
+        # Match the rest of the app (white background, dark text,
+        # styled progress bar + Cancel button) so the dialog stays
+        # readable instead of falling back to the Qt platform default
+        # which renders white text on white background here.
+        self.setStyleSheet(ThemeManager().progress_dialog())
 
         self._info = info
         self._download_result: Optional[DownloadResult] = None
@@ -184,7 +190,8 @@ class UpdateProgressDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
 
-        self._status = QLabel(f"Se descarcă versiunea {info.version}...")
+        self._status = QLabel(f"Downloading version {info.version}...")
+        self._status.setWordWrap(True)
         layout.addWidget(self._status)
 
         self._bar = QProgressBar()
@@ -228,14 +235,14 @@ class UpdateProgressDialog(QDialog):
             self._bar.setValue(done)
             percent = int(done * 100 / total)
             self._status.setText(
-                f"Se descarcă versiunea {self._info.version}... {percent}% "
+                f"Downloading version {self._info.version}... {percent}% "
                 f"({_format_bytes(done)} / {_format_bytes(total)})"
             )
         else:
             # Unknown total — keep the bar marquee-style but still
             # display the number of bytes received.
             self._status.setText(
-                f"Se descarcă versiunea {self._info.version}... " f"{_format_bytes(done)}"
+                f"Downloading version {self._info.version}... {_format_bytes(done)}"
             )
 
     def _on_finished_ok(self, result: DownloadResult) -> None:
@@ -247,7 +254,7 @@ class UpdateProgressDialog(QDialog):
         self.reject()
 
     def _on_cancel_clicked(self) -> None:
-        self._status.setText("Se anulează descărcarea...")
+        self._status.setText("Cancelling download...")
         self._buttons.button(QDialogButtonBox.StandardButton.Cancel).setEnabled(False)
         self._worker.request_cancel()
 

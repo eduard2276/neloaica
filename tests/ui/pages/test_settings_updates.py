@@ -160,7 +160,7 @@ class TestUpdateSectionLayout:
 
     def test_initial_status_invites_check(self, page):
         text = page.update_status_label.text().lower()
-        assert "verifica" in text or "verifică" in text
+        assert "check" in text
 
 
 # ===========================================================================
@@ -177,7 +177,7 @@ class TestCheckButtonNoUpdate:
         page.on_check_update_clicked()
         qtbot.waitUntil(lambda: page.check_update_button.isEnabled(), timeout=2000)
         assert __version__ in page.update_status_label.text()
-        assert "recent" in page.update_status_label.text().lower()
+        assert "latest" in page.update_status_label.text().lower()
 
     def test_check_button_disabled_during_run(self, page, qtbot):
         orch = MagicMock()
@@ -202,7 +202,7 @@ class TestCheckButtonFailure:
 
         page.on_check_update_clicked()
         qtbot.waitUntil(lambda: page.check_update_button.isEnabled(), timeout=2000)
-        assert "eșuat" in page.update_status_label.text().lower()
+        assert "failed" in page.update_status_label.text().lower()
 
 
 # ===========================================================================
@@ -321,7 +321,7 @@ class TestCheckButtonHasUpdate:
             qtbot.waitUntil(lambda: page.check_update_button.isEnabled(), timeout=2000)
 
         orch.apply.assert_not_called()
-        assert "eșuat" in page.update_status_label.text().lower()
+        assert "failed" in page.update_status_label.text().lower()
 
     def test_apply_failure_surfaces_in_status(self, page, qtbot):
         info = _info("9.9.9")
@@ -350,7 +350,7 @@ class TestCheckButtonHasUpdate:
             page.on_check_update_clicked()
             qtbot.waitUntil(lambda: page.check_update_button.isEnabled(), timeout=2000)
 
-        assert "eșuat" in page.update_status_label.text().lower()
+        assert "failed" in page.update_status_label.text().lower()
 
 
 # ===========================================================================

@@ -493,6 +493,75 @@ class ThemeManager:
             }}
         """
 
+    def info_label(self) -> str:
+        """Style for read-only info labels inside group boxes.
+
+        White background with dark text — used for the current
+        version, backup description, update status, etc. so the
+        copy stays legible against any group box background.
+        """
+        return f"""
+            QLabel {{
+                background-color: {self._colors['bg_primary']};
+                color: {self._colors['text_primary']};
+                font-size: 13px;
+                padding: 6px 10px;
+                border-radius: 4px;
+            }}
+        """
+
+    def progress_dialog(self) -> str:
+        """Style for the auto-update progress dialog.
+
+        Covers QDialog background, status label, the determinate
+        progress bar (track + chunk + centred percentage text) and
+        the Cancel button so the dialog matches the rest of the app
+        and is readable against the white page background.
+        """
+        return f"""
+            QDialog {{
+                background-color: {self._colors['bg_primary']};
+            }}
+            QDialog QLabel {{
+                background-color: {self._colors['bg_primary']};
+                color: {self._colors['text_primary']};
+                font-size: 14px;
+                font-weight: bold;
+                padding: 4px 0px;
+            }}
+            QProgressBar {{
+                background-color: {self._colors['bg_secondary']};
+                color: {self._colors['text_primary']};
+                border: 2px solid {self._colors['border']};
+                border-radius: 6px;
+                text-align: center;
+                font-weight: bold;
+                font-size: 13px;
+                min-height: 22px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {self._colors['primary']};
+                border-radius: 4px;
+            }}
+            QDialogButtonBox QPushButton {{
+                background-color: {self._colors['gray']};
+                color: {self._colors['text_light']};
+                border: none;
+                border-radius: 6px;
+                padding: 8px 20px;
+                font-weight: bold;
+                font-size: 13px;
+                min-width: 90px;
+            }}
+            QDialogButtonBox QPushButton:hover {{
+                background-color: {self._colors['gray_hover']};
+            }}
+            QDialogButtonBox QPushButton:disabled {{
+                background-color: {self._colors['border']};
+                color: {self._colors['text_secondary']};
+            }}
+        """
+
     def line_edit_readonly(self) -> str:
         """Style for read-only line edit inputs with grey background."""
         return f"""

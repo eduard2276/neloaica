@@ -39,7 +39,7 @@ class SettingsPage(QWidget):
         super().__init__()
         self.theme = ThemeManager()
         # The orchestrator is built lazily so the network is never
-        # touched until the user clicks "Verifică actualizări". Tests
+        # touched until the user clicks "Check for updates". Tests
         # inject a fake via ``set_update_orchestrator_factory``.
         self._orchestrator_factory = _default_orchestrator_factory
         self._check_worker = None
@@ -54,7 +54,7 @@ class SettingsPage(QWidget):
         layout.setSpacing(20)
 
         title = QLabel("Settings")
-        title.setStyleSheet(self.theme.page_title() + "color: #ef6c00;")
+        title.setStyleSheet(self.theme.page_title())
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(title)
 
@@ -125,7 +125,8 @@ class SettingsPage(QWidget):
         backup_layout.setSpacing(15)
 
         backup_info = QLabel("Create a backup of your database to protect your data.")
-        backup_info.setStyleSheet("color: #7f8c8d; font-size: 13px;")
+        backup_info.setStyleSheet(self.theme.info_label())
+        backup_info.setWordWrap(True)
         backup_layout.addWidget(backup_info)
 
         backup_button_layout = QHBoxLayout()
@@ -142,22 +143,22 @@ class SettingsPage(QWidget):
         layout.addWidget(backup_group)
 
         # Updates section -----------------------------------------------
-        updates_group = QGroupBox("Actualizări")
+        updates_group = QGroupBox("Updates")
         updates_group.setStyleSheet(self.theme.groupbox())
         updates_layout = QVBoxLayout()
         updates_layout.setSpacing(15)
 
-        self.current_version_label = QLabel(f"Versiunea curentă: {__version__}")
-        self.current_version_label.setStyleSheet("color: #2c3e50; font-size: 13px;")
+        self.current_version_label = QLabel(f"Current version: {__version__}")
+        self.current_version_label.setStyleSheet(self.theme.info_label())
         updates_layout.addWidget(self.current_version_label)
 
-        self.update_status_label = QLabel("Apasă butonul pentru a verifica actualizările.")
-        self.update_status_label.setStyleSheet("color: #7f8c8d; font-size: 13px;")
+        self.update_status_label = QLabel("Click the button to check for updates.")
+        self.update_status_label.setStyleSheet(self.theme.info_label())
         self.update_status_label.setWordWrap(True)
         updates_layout.addWidget(self.update_status_label)
 
         check_layout = QHBoxLayout()
-        self.check_update_button = QPushButton("🔄 Verifică actualizări")
+        self.check_update_button = QPushButton("🔄 Check for Updates")
         self.check_update_button.setStyleSheet(self.theme.button("primary"))
         self.check_update_button.setMinimumHeight(40)
         self.check_update_button.setMaximumWidth(250)
@@ -344,17 +345,17 @@ class SettingsPage(QWidget):
         self._orchestrator_factory = factory
 
     def on_check_update_clicked(self):
-        """Handler for the "Verifică actualizări" button."""
+        """Handler for the "Check for Updates" button."""
         if self._check_worker is not None and self._check_worker.isRunning():
             return
         self.check_update_button.setEnabled(False)
-        self.update_status_label.setText("Se verifică actualizările...")
+        self.update_status_label.setText("Checking for updates...")
 
         try:
             orchestrator = self._orchestrator_factory()
         except Exception as exc:  # pragma: no cover - defensive
             logger.exception("Failed to build update orchestrator")
-            self._show_update_error(f"Nu am putut iniția verificarea: {exc}")
+            self._show_update_error(f"Could not start the update check: {exc}")
             self.check_update_button.setEnabled(True)
             return
 
@@ -403,44 +404,42 @@ class SettingsPage(QWidget):
         """Slot for ``UpdateCheckWorker.finished_ok``."""
         self.check_update_button.setEnabled(True)
         if info is None:
-            self.update_status_label.setText(f"Folosești cea mai recentă versiune ({__version__}).")
+            self.update_status_label.setText(f"You are on the latest version ({__version__}).")
             return
 
         self.update_status_label.setText(
-            f"Versiunea {info.version} este disponibilă (curentă: {__version__})."
+            f"Version {info.version} is available (current: {__version__})."
         )
         self._prompt_to_download(info)
 
     def _on_check_failed(self, message: str):
         """Slot for ``UpdateCheckWorker.failed``."""
         self.check_update_button.setEnabled(True)
-        self.update_status_label.setText(
-            "Verificarea a eșuat. Vezi detaliile în mesajul de mai jos."
-        )
+        self.update_status_label.setText("Update check failed. See details in the dialog.")
         self._show_update_error(
-            f"Nu am putut verifica actualizările:\n\n{message}\n\n"
-            "Verifică conexiunea la internet și încearcă din nou."
+            f"Could not check for updates:\n\n{message}\n\n"
+            "Check your internet connection and try again."
         )
 
     def _prompt_to_download(self, info: UpdateInfo):
         """Ask the user whether to download the new version."""
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Icon.Question)
-        msg.setWindowTitle("Actualizare disponibilă")
+        msg.setWindowTitle("Update Available")
         text = (
-            f"Versiunea {info.version} este disponibilă.\n"
-            f"Versiunea curentă: {__version__}.\n\n"
-            "Vrei să o descarci acum? La final aplicația va trebui să repornească."
+            f"Version {info.version} is available.\n"
+            f"Current version: {__version__}.\n\n"
+            "Download it now? The app will need to restart at the end."
         )
         if info.mandatory:
-            text = "[Actualizare obligatorie]\n\n" + text
+            text = "[Mandatory update]\n\n" + text
         msg.setText(text)
         msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg.setDefaultButton(QMessageBox.StandardButton.Yes)
         msg.setStyleSheet(self.theme.message_box_confirm())
         if msg.exec() != QMessageBox.StandardButton.Yes:
             self.update_status_label.setText(
-                f"Versiunea {info.version} este disponibilă, dar nu ai descărcat-o."
+                f"Version {info.version} is available but was not downloaded."
             )
             return
 
@@ -455,15 +454,15 @@ class SettingsPage(QWidget):
         if result != QDialog.DialogCode.Accepted:
             error = dialog.error_message
             if error:
-                self.update_status_label.setText("Descărcarea a eșuat.")
-                self._show_update_error(f"Descărcarea actualizării a eșuat:\n\n{error}")
+                self.update_status_label.setText("Download failed.")
+                self._show_update_error(f"Update download failed:\n\n{error}")
             else:
-                self.update_status_label.setText("Descărcarea a fost anulată.")
+                self.update_status_label.setText("Download was cancelled.")
             return
 
         download = dialog.download_result
         if download is None:  # pragma: no cover - defensive
-            self.update_status_label.setText("Descărcarea s-a încheiat fără rezultat.")
+            self.update_status_label.setText("Download finished without a result.")
             return
 
         self._prompt_to_apply(download)
@@ -472,19 +471,19 @@ class SettingsPage(QWidget):
         """Ask the user whether to apply the freshly downloaded update."""
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Icon.Question)
-        msg.setWindowTitle("Instalează actualizarea?")
+        msg.setWindowTitle("Install Update?")
         msg.setText(
-            f"Versiunea {download.info.version} a fost descărcată.\n\n"
-            "Aplicația trebuie să se închidă pentru a o instala. "
-            "Va reporni automat la final. Continui?"
+            f"Version {download.info.version} has been downloaded.\n\n"
+            "The app needs to close to install it. "
+            "It will restart automatically at the end. Continue?"
         )
         msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg.setDefaultButton(QMessageBox.StandardButton.Yes)
         msg.setStyleSheet(self.theme.message_box_confirm())
         if msg.exec() != QMessageBox.StandardButton.Yes:
             self.update_status_label.setText(
-                f"Actualizarea {download.info.version} este pregătită în "
-                f"{download.path}. Apasă din nou pentru a o instala."
+                f"Update {download.info.version} is staged at "
+                f"{download.path}. Click again to install it."
             )
             return
 
@@ -492,20 +491,20 @@ class SettingsPage(QWidget):
             self._orchestrator.apply(download)
         except UpdateApplyError as exc:
             logger.warning("Apply failed: %s", exc)
-            self.update_status_label.setText("Instalarea a eșuat.")
-            self._show_update_error(f"Instalarea actualizării a eșuat:\n\n{exc}")
+            self.update_status_label.setText("Install failed.")
+            self._show_update_error(f"Update install failed:\n\n{exc}")
             return
 
         # The helper script is now waiting for THIS process to die so
         # it can swap directories. Closing the Qt event loop is the
         # cleanest way to do that.
-        self.update_status_label.setText("Aplicația se închide pentru a finaliza instalarea...")
+        self.update_status_label.setText("Closing the application to finalise the install...")
         QApplication.instance().quit()
 
     def _show_update_error(self, message: str):
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Icon.Warning)
-        msg.setWindowTitle("Actualizări")
+        msg.setWindowTitle("Updates")
         msg.setText(message)
         msg.setStyleSheet(self.theme.message_box_confirm())
         msg.exec()

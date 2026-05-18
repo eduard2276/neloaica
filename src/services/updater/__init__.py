@@ -19,7 +19,7 @@ Typical use::
         info = None
 
     if info is not None:
-        # surface in UI: f"Versiunea {info.version} este disponibilă."
+        # surface in UI: f"Version {info.version} is available."
         ...
 """
 
