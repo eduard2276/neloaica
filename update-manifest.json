@@ -1,12 +1,12 @@
 {
   "$schema": "./update-manifest.schema.json",
   "stable": {
-    "version": "1.0.3",
-    "download_url": "https://github.com/eduard2276/neloaica/releases/download/v1.0.3/Neloaica-v1.0.3-windows.zip",
-    "sha256": "6c6bf9099b0dca5b530ddd7987d0c99efbe97fbd07a64438cd11ef83edd24076",
+    "version": "1.0.4",
+    "download_url": "https://github.com/eduard2276/neloaica/releases/download/v1.0.4/Neloaica-v1.0.4-windows.zip",
+    "sha256": "6bb93f9831c7cb36b59c47b93c8621da7200189244479d96283fd9884ac09ba6",
     "mandatory": false,
     "min_required_version": "0.0.0",
-    "release_url": "https://github.com/eduard2276/neloaica/releases/tag/v1.0.3",
-    "release_notes_url": "https://github.com/eduard2276/neloaica/releases/tag/v1.0.3"
+    "release_url": "https://github.com/eduard2276/neloaica/releases/tag/v1.0.4",
+    "release_notes_url": "https://github.com/eduard2276/neloaica/releases/tag/v1.0.4"
   }
 }
