@@ -25,8 +25,10 @@ from src.services.updater import (
 from src.services.updater.apply import (
     DEFAULT_EXECUTABLE_NAME,
     HELPER_SCRIPT_NAME,
+    SCHEDULED_TASK_PREFIX,
     _ps_quote,
     _safe_extract_zip,
+    _win_quote_arg,
 )
 
 # ===========================================================================
@@ -67,6 +69,7 @@ def _make_applier(
     spawn: list | None = None,
     install_name: str = "Neloaica",
     staging_name: str = "staging",
+    use_schtasks: bool = False,
 ) -> UpdateApplier:
     install_dir = tmp_path / install_name
     staging_root = tmp_path / staging_name
@@ -74,6 +77,7 @@ def _make_applier(
         install_dir=install_dir,
         staging_root=staging_root,
         executable_name=DEFAULT_EXECUTABLE_NAME,
+        use_schtasks=use_schtasks,
     )
     captured = spawn if spawn is not None else []
 
@@ -188,6 +192,9 @@ class TestBuildPlan:
         assert plan.helper_script_path.parent == applier.resolve_staging_root()
         assert plan.info.version.major == 1
         assert plan.current_pid > 0
+        assert plan.task_name.startswith(SCHEDULED_TASK_PREFIX)
+        assert "1.2.3" in plan.task_name
+        assert str(plan.current_pid) in plan.task_name
 
 
 # ===========================================================================
@@ -285,6 +292,17 @@ class TestHelperScript:
         assert "{staging_dir}" not in script
         assert "{pid}" not in script
         assert "{executable}" not in script
+        assert "{task_name}" not in script
+
+    def test_helper_script_contains_task_cleanup(self, tmp_path):
+        applier = _make_applier(tmp_path)
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+        plan = applier._build_plan(archive, _info("1.2.3"))
+        script = UpdateApplier.build_helper_script(plan)
+        # The helper must self-clean its Scheduled Task on completion.
+        assert "$TaskName" in script
+        assert "schtasks.exe /Delete" in script
+        assert _ps_quote(plan.task_name) in script
 
     def test_paths_are_single_quoted(self, tmp_path):
         applier = _make_applier(tmp_path)
@@ -405,3 +423,200 @@ class TestApplyEndToEnd:
 
         source = Path(apply_mod.__file__).read_text(encoding="utf-8")
         assert 'sys.platform == "win32"' in source
+
+
+# ===========================================================================
+# TestWinQuoteArg
+# ===========================================================================
+
+
+class TestWinQuoteArg:
+    def test_plain_arg_unchanged(self):
+        assert _win_quote_arg("powershell.exe") == "powershell.exe"
+        assert _win_quote_arg("-NoProfile") == "-NoProfile"
+
+    def test_empty_arg_quoted(self):
+        assert _win_quote_arg("") == '""'
+
+    def test_arg_with_space_quoted(self):
+        assert _win_quote_arg("C:\\Program Files\\app") == '"C:\\Program Files\\app"'
+
+    def test_embedded_quote_escaped(self):
+        assert _win_quote_arg('say "hi"') == '"say \\"hi\\""'
+
+    def test_trailing_backslash_doubled_inside_quotes(self):
+        # MSVCRT rule: ``N`` backslashes before the closing quote
+        # become ``2N`` so the closing quote stays literal-quote.
+        assert _win_quote_arg("path\\with space\\") == '"path\\with space\\\\"'
+
+
+# ===========================================================================
+# TestSchtasksArgv
+# ===========================================================================
+
+
+class TestSchtasksArgv:
+    def test_tr_value_contains_powershell_and_script_path(self, tmp_path):
+        applier = _make_applier(tmp_path)
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+        plan = applier._build_plan(archive, _info("1.2.3"))
+        tr = UpdateApplier.build_schtasks_tr_value(plan)
+        assert "powershell.exe" in tr
+        assert "-NoProfile" in tr
+        assert "-File" in tr
+        assert str(plan.helper_script_path) in tr
+
+    def test_create_argv_shape(self, tmp_path):
+        applier = _make_applier(tmp_path)
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+        plan = applier._build_plan(archive, _info("1.2.3"))
+        argv = list(UpdateApplier.build_schtasks_create_argv(plan))
+        assert argv[0] == "schtasks"
+        assert argv[1] == "/Create"
+        assert "/TN" in argv and plan.task_name in argv
+        assert "/TR" in argv
+        assert "/SC" in argv and "ONCE" in argv
+        assert "/F" in argv
+
+    def test_run_argv_shape(self, tmp_path):
+        applier = _make_applier(tmp_path)
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+        plan = applier._build_plan(archive, _info("1.2.3"))
+        argv = list(UpdateApplier.build_schtasks_run_argv(plan))
+        assert argv == ["schtasks", "/Run", "/TN", plan.task_name]
+
+    def test_delete_argv_shape(self, tmp_path):
+        applier = _make_applier(tmp_path)
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+        plan = applier._build_plan(archive, _info("1.2.3"))
+        argv = list(UpdateApplier.build_schtasks_delete_argv(plan))
+        assert argv == ["schtasks", "/Delete", "/TN", plan.task_name, "/F"]
+
+
+# ===========================================================================
+# TestSpawnViaSchtasks
+# ===========================================================================
+
+
+class _FakeCompletedProcess:
+    def __init__(self, returncode: int, stdout: str = "", stderr: str = ""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+class TestSpawnViaSchtasks:
+    def _make_schtasks_applier(self, tmp_path, results):
+        """Build an applier that uses schtasks with a scripted result queue.
+
+        ``results`` is a list of ``_FakeCompletedProcess`` instances
+        returned in order, one per ``_run_schtasks`` invocation. The
+        list of recorded argvs is exposed on the applier as
+        ``_captured_schtasks``.
+        """
+        applier = UpdateApplier(
+            install_dir=tmp_path / "Neloaica",
+            staging_root=tmp_path / "staging",
+            executable_name=DEFAULT_EXECUTABLE_NAME,
+            use_schtasks=True,
+        )
+        captured: list[list[str]] = []
+        queue = list(results)
+
+        def fake_run_schtasks(argv):
+            captured.append(list(argv))
+            if queue:
+                return queue.pop(0)
+            return _FakeCompletedProcess(0)
+
+        applier._run_schtasks = fake_run_schtasks  # type: ignore[method-assign]
+
+        def fail_popen(_argv):
+            raise AssertionError("_popen must not be reached when schtasks succeeds")
+
+        applier._popen = fail_popen  # type: ignore[method-assign]
+        applier._captured_schtasks = captured  # type: ignore[attr-defined]
+        return applier
+
+    def test_apply_uses_schtasks_create_then_run(self, tmp_path):
+        applier = self._make_schtasks_applier(
+            tmp_path,
+            results=[_FakeCompletedProcess(0), _FakeCompletedProcess(0)],
+        )
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+
+        plan = applier.apply(archive, _info("1.2.3"))
+
+        calls = applier._captured_schtasks  # type: ignore[attr-defined]
+        assert len(calls) == 2
+        assert calls[0][:2] == ["schtasks", "/Create"]
+        assert plan.task_name in calls[0]
+        assert calls[1] == ["schtasks", "/Run", "/TN", plan.task_name]
+
+    def test_create_failure_raises_and_skips_run(self, tmp_path):
+        applier = self._make_schtasks_applier(
+            tmp_path,
+            results=[_FakeCompletedProcess(1, stderr="ACCESS DENIED")],
+        )
+        # We don't want the fallback _popen to swallow the failure
+        # silently, so make it raise too.
+        applier._popen = lambda argv: (_ for _ in ()).throw(  # type: ignore[method-assign]
+            OSError("popen also unavailable")
+        )
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+
+        with pytest.raises(UpdateApplyError) as ei:
+            applier.apply(archive, _info())
+
+        assert "Cannot launch helper" in str(ei.value)
+        calls = applier._captured_schtasks  # type: ignore[attr-defined]
+        # /Create was attempted, /Run never reached.
+        assert calls[0][:2] == ["schtasks", "/Create"]
+        assert not any(c[:2] == ["schtasks", "/Run"] for c in calls)
+
+    def test_run_failure_cleans_up_and_falls_back(self, tmp_path):
+        applier = self._make_schtasks_applier(
+            tmp_path,
+            results=[
+                _FakeCompletedProcess(0),  # /Create succeeds
+                _FakeCompletedProcess(1, stderr="task could not be run"),  # /Run
+                _FakeCompletedProcess(0),  # /Delete cleanup
+            ],
+        )
+        # Track that the Popen fallback is exercised after schtasks
+        # fails on /Run.
+        popen_calls: list = []
+        applier._popen = lambda argv: popen_calls.append(list(argv))  # type: ignore[method-assign]
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+
+        plan = applier.apply(archive, _info())
+
+        calls = applier._captured_schtasks  # type: ignore[attr-defined]
+        # /Delete must have been called for cleanup.
+        assert any(c[:2] == ["schtasks", "/Delete"] for c in calls)
+        # Fallback Popen must have been invoked with the helper.
+        assert len(popen_calls) == 1
+        assert popen_calls[0][0] == "powershell.exe"
+        assert popen_calls[0][-1] == str(plan.helper_script_path)
+
+    def test_oserror_from_run_schtasks_falls_back_to_popen(self, tmp_path):
+        applier = UpdateApplier(
+            install_dir=tmp_path / "Neloaica",
+            staging_root=tmp_path / "staging",
+            executable_name=DEFAULT_EXECUTABLE_NAME,
+            use_schtasks=True,
+        )
+
+        def boom(_argv):
+            raise OSError("schtasks not found")
+
+        applier._run_schtasks = boom  # type: ignore[method-assign]
+        popen_calls: list = []
+        applier._popen = lambda argv: popen_calls.append(list(argv))  # type: ignore[method-assign]
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+
+        plan = applier.apply(archive, _info())
+
+        assert len(popen_calls) == 1
+        assert popen_calls[0][0] == "powershell.exe"
+        assert popen_calls[0][-1] == str(plan.helper_script_path)

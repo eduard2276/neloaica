@@ -58,6 +58,7 @@ def _apply_plan(info=None):
         helper_script_path=Path("/tmp/stage/apply_update.ps1"),
         info=info,
         current_pid=1234,
+        task_name="Neloaica-Apply-Update-test-1234",
     )
 
 

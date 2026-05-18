@@ -17,16 +17,24 @@ The strategy here mirrors what most desktop updaters do:
    exit, then performs the swap (current install -> ``.old.<ts>``
    backup, staged folder -> install location) and relaunches the
    freshly installed executable.
-4. Launch the helper in a detached PowerShell process and return.
-   The caller is expected to immediately shut the Qt app down
-   ("application is exiting to finish the update..." in the UI).
+4. Launch the helper *outside our own process tree* so it survives
+   ``QApplication.quit()``. On Windows this is done by registering
+   a one-shot Scheduled Task and immediately invoking ``schtasks
+   /Run``. Task Scheduler executes the task in its own service
+   context, isolated from any Windows Job Object the PyInstaller
+   bootloader may have placed us in (``DETACHED_PROCESS`` and
+   ``CREATE_BREAKAWAY_FROM_JOB`` alone are not sufficient — the
+   parent job can ignore breakaway and silently kill the child).
+   If the Scheduled Task strategy fails (e.g. ``schtasks`` is
+   unavailable), we fall back to ``subprocess.Popen`` with the
+   detach flags. The helper deletes its own task on completion.
 
 Every step is structured so it can be unit tested without actually
 running the swap: directory layout, archive shape, helper script
-contents and the final ``subprocess.Popen`` arguments are all
-exposed through small, individually testable methods. The actual
-``Popen`` call is the only side effect and lives in a tiny method
-(``_spawn_helper``) that tests monkeypatch.
+contents, scheduled-task command line and the final ``Popen``
+arguments are all exposed through small, individually testable
+methods. The only true side effects live in ``_run_schtasks`` and
+``_popen``, both of which tests monkeypatch.
 """
 
 from __future__ import annotations
@@ -51,6 +59,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_EXECUTABLE_NAME = "Neloaica.exe"
 HELPER_SCRIPT_NAME = "apply_update.ps1"
+SCHEDULED_TASK_PREFIX = "Neloaica-Apply-Update"
 
 
 @dataclass(frozen=True)
@@ -59,8 +68,9 @@ class ApplyPlan:
 
     Building the plan eagerly lets us validate inputs and surface
     errors to the user *before* writing any helper script — once the
-    plan is good, applying it is a single :func:`subprocess.Popen`
-    call.
+    plan is good, applying it is a single ``schtasks`` invocation
+    (or, on POSIX / when ``schtasks`` is unavailable, a single
+    :func:`subprocess.Popen` call).
     """
 
     archive_path: Path
@@ -71,6 +81,7 @@ class ApplyPlan:
     helper_script_path: Path
     info: UpdateInfo
     current_pid: int
+    task_name: str
 
 
 class UpdateApplier:
@@ -87,12 +98,16 @@ class UpdateApplier:
         install_dir: Optional[Path] = None,
         staging_root: Optional[Path] = None,
         executable_name: str = DEFAULT_EXECUTABLE_NAME,
+        use_schtasks: Optional[bool] = None,
     ) -> None:
         if not executable_name:
             raise ValueError("executable_name must not be empty.")
         self._install_dir = install_dir
         self._staging_root = staging_root
         self._executable_name = executable_name
+        # Scheduled Task spawn is Windows-only and is the default
+        # there; tests / non-Windows fall back to plain ``Popen``.
+        self._use_schtasks = use_schtasks if use_schtasks is not None else sys.platform == "win32"
 
     # ---------------------------------------------------------------
     # Inspection helpers (exposed for tests / UI)
@@ -170,6 +185,8 @@ class UpdateApplier:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         backup_dir = install_dir.with_name(f"{install_dir.name}.old.{timestamp}")
         helper_script_path = self.resolve_staging_root() / f"{HELPER_SCRIPT_NAME}"
+        current_pid = os.getpid()
+        task_name = f"{SCHEDULED_TASK_PREFIX}-{info.version}-{timestamp}-{current_pid}"
         return ApplyPlan(
             archive_path=archive_path,
             staging_dir=staging_dir,
@@ -178,7 +195,8 @@ class UpdateApplier:
             backup_dir=backup_dir,
             helper_script_path=helper_script_path,
             info=info,
-            current_pid=os.getpid(),
+            current_pid=current_pid,
+            task_name=task_name,
         )
 
     def _stage_archive(self, plan: ApplyPlan) -> None:
@@ -258,6 +276,7 @@ class UpdateApplier:
         * renames the current install to ``.old.<timestamp>``,
         * moves the staged folder into the install location,
         * relaunches the executable,
+        * unregisters its own Scheduled Task on success,
         * leaves a structured log next to itself.
         """
         log_path = plan.helper_script_path.with_suffix(".log")
@@ -269,6 +288,7 @@ class UpdateApplier:
             executable=_ps_quote(plan.executable_path),
             log_path=_ps_quote(log_path),
             version=plan.info.version,
+            task_name=_ps_quote(plan.task_name),
         )
 
     # ---------------------------------------------------------------
@@ -276,6 +296,28 @@ class UpdateApplier:
     # ---------------------------------------------------------------
 
     def _spawn_helper(self, plan: ApplyPlan) -> None:
+        """Launch the helper outside our own process tree.
+
+        Order of preference on Windows:
+
+        1. **Scheduled Task** (``schtasks /Create`` + ``/Run``). Runs
+           in the Task Scheduler service context, completely
+           independent of any Job Object we may be in.
+        2. **Detached ``Popen``** (``DETACHED_PROCESS | ...``).
+           Historical fallback if ``schtasks`` fails for any reason
+           (uncommon, e.g. corporate machines that hard-disable it).
+        """
+        if self._use_schtasks:
+            try:
+                self._spawn_via_schtasks(plan)
+                return
+            except (OSError, ValueError) as exc:
+                logger.warning(
+                    "Scheduled Task spawn failed (%s); "
+                    "falling back to detached Popen for helper %s",
+                    exc,
+                    plan.helper_script_path,
+                )
         argv = self.build_spawn_argv(plan)
         try:
             self._popen(argv)
@@ -307,18 +349,94 @@ class UpdateApplier:
             str(plan.helper_script_path),
         )
 
+    @staticmethod
+    def build_schtasks_tr_value(plan: ApplyPlan) -> str:
+        """Render the ``/TR`` value passed to ``schtasks /Create``.
+
+        Public so tests can assert on the exact command-line string.
+        The value is a single Windows command line — ``schtasks``
+        parses it by quoting rules, so any argument with whitespace
+        is wrapped in double quotes and embedded quotes are escaped
+        per the standard MSVCRT convention.
+        """
+        argv = UpdateApplier.build_spawn_argv(plan)
+        return " ".join(_win_quote_arg(a) for a in argv)
+
+    @staticmethod
+    def build_schtasks_create_argv(plan: ApplyPlan) -> Sequence[str]:
+        """Argv for ``schtasks /Create`` (returned for tests/UI logs)."""
+        return (
+            "schtasks",
+            "/Create",
+            "/TN",
+            plan.task_name,
+            "/TR",
+            UpdateApplier.build_schtasks_tr_value(plan),
+            "/SC",
+            "ONCE",
+            "/ST",
+            "00:00",
+            "/F",
+        )
+
+    @staticmethod
+    def build_schtasks_run_argv(plan: ApplyPlan) -> Sequence[str]:
+        """Argv for ``schtasks /Run`` (returned for tests/UI logs)."""
+        return ("schtasks", "/Run", "/TN", plan.task_name)
+
+    @staticmethod
+    def build_schtasks_delete_argv(plan: ApplyPlan) -> Sequence[str]:
+        """Argv for ``schtasks /Delete`` (best-effort cleanup)."""
+        return ("schtasks", "/Delete", "/TN", plan.task_name, "/F")
+
+    def _spawn_via_schtasks(self, plan: ApplyPlan) -> None:
+        """Register a one-shot Scheduled Task and run it immediately.
+
+        Why this works where ``DETACHED_PROCESS`` does not:
+        ``schtasks`` hands the work off to the Task Scheduler
+        service, which then ``CreateProcessW``-es the helper from a
+        completely independent process tree. The PyInstaller
+        bootloader's Job Object cannot reach across that boundary,
+        so ``app.quit()`` no longer takes the helper down with it.
+        """
+        create_argv = self.build_schtasks_create_argv(plan)
+        create_result = self._run_schtasks(create_argv)
+        if create_result.returncode != 0:
+            raise OSError(
+                f"schtasks /Create failed (rc={create_result.returncode}): "
+                f"{(create_result.stderr or create_result.stdout).strip()}"
+            )
+
+        run_argv = self.build_schtasks_run_argv(plan)
+        run_result = self._run_schtasks(run_argv)
+        if run_result.returncode != 0:
+            # Best-effort cleanup so we don't leave an orphan task
+            # behind when /Run fails.
+            self._run_schtasks(self.build_schtasks_delete_argv(plan))
+            raise OSError(
+                f"schtasks /Run failed (rc={run_result.returncode}): "
+                f"{(run_result.stderr or run_result.stdout).strip()}"
+            )
+
+    def _run_schtasks(self, argv: Sequence[str]) -> "subprocess.CompletedProcess[str]":
+        """Tiny seam tests monkeypatch instead of running schtasks."""
+        return subprocess.run(
+            list(argv),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
     def _popen(self, argv: Sequence[str]) -> None:
-        """Tiny seam tests monkeypatch instead of running PowerShell."""
-        # ``DETACHED_PROCESS`` + ``CREATE_NEW_PROCESS_GROUP`` are the
-        # canonical Windows flags for "fire and forget" children.
-        # ``CREATE_BREAKAWAY_FROM_JOB`` (0x01000000) is critical for
-        # PyInstaller-built apps: PyInstaller's ``runw.exe`` bootloader
-        # runs inside a Windows Job Object that, by default, closes all
-        # children when the parent exits. Without breakaway, our helper
-        # PowerShell process is killed the instant we call ``app.quit()``
-        # — even if it was launched detached. We fall back to plain
-        # ``Popen`` on non-Windows platforms (CI / dev) where these
-        # flags are unavailable.
+        """Tiny seam tests monkeypatch instead of running PowerShell.
+
+        This is only used as a fallback when the Scheduled Task
+        strategy fails. The detach flags below are kept as a
+        best-effort safety net even though, on PyInstaller windowed
+        builds, they are routinely overridden by the parent Job
+        Object — which is exactly why ``schtasks`` is the primary
+        path on Windows.
+        """
         creation_flags = 0
         if sys.platform == "win32":
             DETACHED_PROCESS = subprocess.DETACHED_PROCESS  # type: ignore[attr-defined]
@@ -350,6 +468,39 @@ def _ps_quote(path) -> str:
     """
     text = str(path)
     return "'" + text.replace("'", "''") + "'"
+
+
+def _win_quote_arg(arg: str) -> str:
+    """Quote a single argument for a Windows command line.
+
+    Follows the standard MSVCRT parsing rules (the same convention
+    used by :func:`subprocess.list2cmdline`): wrap the argument in
+    double quotes if it contains whitespace or quotes, and escape
+    embedded ``"`` / trailing ``\\`` runs appropriately. Plain
+    arguments are returned untouched so the rendered command line
+    stays human-readable.
+    """
+    text = str(arg)
+    if not text:
+        return '""'
+    needs_quoting = any(c in text for c in (" ", "\t", '"'))
+    if not needs_quoting:
+        return text
+    out: list = []
+    backslashes = 0
+    for ch in text:
+        if ch == "\\":
+            backslashes += 1
+            continue
+        if ch == '"':
+            out.append("\\" * (backslashes * 2 + 1))
+            out.append('"')
+        else:
+            out.append("\\" * backslashes)
+            out.append(ch)
+        backslashes = 0
+    out.append("\\" * (backslashes * 2))
+    return '"' + "".join(out) + '"'
 
 
 def _safe_extract_zip(zf: zipfile.ZipFile, dest: Path) -> None:
@@ -408,6 +559,7 @@ $StagingDir  = {staging_dir}
 $BackupDir   = {backup_dir}
 $Executable  = {executable}
 $ParentPid   = {pid}
+$TaskName    = {task_name}
 
 function Write-Log($msg) {{
     $stamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
@@ -415,10 +567,20 @@ function Write-Log($msg) {{
     Add-Content -Path $LogPath -Value $line -ErrorAction SilentlyContinue
 }}
 
+function Remove-SelfTask {{
+    if (-not $TaskName) {{ return }}
+    try {{
+        & schtasks.exe /Delete /TN $TaskName /F 2>$null | Out-Null
+    }} catch {{
+        Write-Log "Task cleanup produced: $($_.Exception.Message)"
+    }}
+}}
+
 try {{
     Write-Log "Starting update helper for version {version}."
     Write-Log "Parent PID: $ParentPid"
     Write-Log "Install dir: $InstallDir"
+    Write-Log "Scheduled task: $TaskName"
 
     try {{
         Wait-Process -Id $ParentPid -Timeout 60 -ErrorAction SilentlyContinue
@@ -440,9 +602,11 @@ try {{
     Write-Log "Launching new build: $Executable"
     Start-Process -FilePath $Executable
     Write-Log "Update complete."
+    Remove-SelfTask
 }} catch {{
     Write-Log "Update FAILED: $($_.Exception.Message)"
     Write-Log $_.ScriptStackTrace
+    Remove-SelfTask
     exit 1
 }}
 """
