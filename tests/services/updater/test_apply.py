@@ -69,6 +69,7 @@ def _make_applier(
     spawn: list | None = None,
     install_name: str = "Neloaica",
     staging_name: str = "staging",
+    use_wmi: bool = False,
     use_schtasks: bool = False,
 ) -> UpdateApplier:
     install_dir = tmp_path / install_name
@@ -77,6 +78,7 @@ def _make_applier(
         install_dir=install_dir,
         staging_root=staging_root,
         executable_name=DEFAULT_EXECUTABLE_NAME,
+        use_wmi=use_wmi,
         use_schtasks=use_schtasks,
     )
     captured = spawn if spawn is not None else []
@@ -518,6 +520,7 @@ class TestSpawnViaSchtasks:
             install_dir=tmp_path / "Neloaica",
             staging_root=tmp_path / "staging",
             executable_name=DEFAULT_EXECUTABLE_NAME,
+            use_wmi=False,
             use_schtasks=True,
         )
         captured: list[list[str]] = []
@@ -604,6 +607,7 @@ class TestSpawnViaSchtasks:
             install_dir=tmp_path / "Neloaica",
             staging_root=tmp_path / "staging",
             executable_name=DEFAULT_EXECUTABLE_NAME,
+            use_wmi=False,
             use_schtasks=True,
         )
 
@@ -620,3 +624,164 @@ class TestSpawnViaSchtasks:
         assert len(popen_calls) == 1
         assert popen_calls[0][0] == "powershell.exe"
         assert popen_calls[0][-1] == str(plan.helper_script_path)
+
+
+# ===========================================================================
+# TestWmiCommand
+# ===========================================================================
+
+
+class TestWmiCommand:
+    def test_command_invokes_win32_process_create(self, tmp_path):
+        applier = _make_applier(tmp_path)
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+        plan = applier._build_plan(archive, _info("1.2.3"))
+        cmd = UpdateApplier.build_wmi_command(plan)
+        assert "Invoke-CimMethod" in cmd
+        assert "Win32_Process" in cmd
+        assert "Create" in cmd
+        # Must surface the WMI ReturnValue so the parent can detect failure.
+        assert "ReturnValue" in cmd
+        assert "exit" in cmd
+
+    def test_command_embeds_helper_command_line(self, tmp_path):
+        applier = _make_applier(tmp_path)
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+        plan = applier._build_plan(archive, _info("1.2.3"))
+        cmd = UpdateApplier.build_wmi_command(plan)
+        assert "powershell.exe" in cmd
+        assert "-File" in cmd
+        assert str(plan.helper_script_path) in cmd
+
+    def test_command_escapes_single_quotes_in_path(self, tmp_path):
+        applier = UpdateApplier(
+            install_dir=tmp_path / "x",
+            staging_root=tmp_path / "user's stage",
+        )
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+        plan = applier._build_plan(archive, _info())
+        cmd = UpdateApplier.build_wmi_command(plan)
+        # The single quote in the staging path must be doubled so the
+        # PowerShell single-quoted -Command string is not terminated early.
+        assert "user''s stage" in cmd
+
+    def test_argv_shape(self, tmp_path):
+        applier = _make_applier(tmp_path)
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+        plan = applier._build_plan(archive, _info())
+        argv = list(UpdateApplier.build_wmi_argv(plan))
+        assert argv[0] == "powershell.exe"
+        assert "-NoProfile" in argv
+        assert "-ExecutionPolicy" in argv and "Bypass" in argv
+        assert "-Command" in argv
+        assert argv[-1] == UpdateApplier.build_wmi_command(plan)
+
+
+# ===========================================================================
+# TestSpawnViaWmi
+# ===========================================================================
+
+
+class TestSpawnViaWmi:
+    def _make_wmi_applier(self, tmp_path, results):
+        applier = UpdateApplier(
+            install_dir=tmp_path / "Neloaica",
+            staging_root=tmp_path / "staging",
+            executable_name=DEFAULT_EXECUTABLE_NAME,
+            use_wmi=True,
+            use_schtasks=False,
+        )
+        captured: list[list[str]] = []
+        queue = list(results)
+
+        def fake_run_capture(argv):
+            captured.append(list(argv))
+            if queue:
+                return queue.pop(0)
+            return _FakeCompletedProcess(0)
+
+        applier._run_capture = fake_run_capture  # type: ignore[method-assign]
+        applier._captured_capture = captured  # type: ignore[attr-defined]
+        return applier
+
+    def test_apply_uses_wmi_when_enabled(self, tmp_path):
+        applier = self._make_wmi_applier(tmp_path, results=[_FakeCompletedProcess(0)])
+
+        def fail_popen(_argv):
+            raise AssertionError("_popen must not run when WMI succeeds")
+
+        applier._popen = fail_popen  # type: ignore[method-assign]
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+
+        applier.apply(archive, _info("1.2.3"))
+
+        calls = applier._captured_capture  # type: ignore[attr-defined]
+        assert len(calls) == 1
+        assert calls[0][0] == "powershell.exe"
+        assert "-Command" in calls[0]
+
+    def test_wmi_failure_falls_back_to_popen(self, tmp_path):
+        # WMI returns non-zero -> spawn raises OSError -> Popen fallback.
+        applier = self._make_wmi_applier(
+            tmp_path,
+            results=[_FakeCompletedProcess(8, stderr="WMI denied")],
+        )
+        popen_calls: list = []
+        applier._popen = lambda argv: popen_calls.append(list(argv))  # type: ignore[method-assign]
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+
+        plan = applier.apply(archive, _info())
+
+        assert len(popen_calls) == 1
+        assert popen_calls[0][-1] == str(plan.helper_script_path)
+
+    def test_wmi_then_schtasks_then_popen_order(self, tmp_path):
+        # Both WMI and schtasks fail -> Popen is the final fallback.
+        applier = UpdateApplier(
+            install_dir=tmp_path / "Neloaica",
+            staging_root=tmp_path / "staging",
+            executable_name=DEFAULT_EXECUTABLE_NAME,
+            use_wmi=True,
+            use_schtasks=True,
+        )
+        order: list = []
+
+        def wmi_fail(_argv):
+            raise OSError("no wmi")
+
+        def schtasks_fail(_argv):
+            raise OSError("no schtasks")
+
+        def popen(argv):
+            order.append("popen")
+
+        applier._spawn_via_wmi = lambda plan: (  # type: ignore[method-assign]
+            order.append("wmi") or wmi_fail(None)
+        )
+        applier._spawn_via_schtasks = lambda plan: (  # type: ignore[method-assign]
+            order.append("schtasks") or schtasks_fail(None)
+        )
+        applier._popen = popen  # type: ignore[method-assign]
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+
+        applier.apply(archive, _info())
+
+        assert order == ["wmi", "schtasks", "popen"]
+
+
+# ===========================================================================
+# TestHelperMoveRetry
+# ===========================================================================
+
+
+class TestHelperMoveRetry:
+    def test_helper_uses_move_with_retry(self, tmp_path):
+        applier = _make_applier(tmp_path)
+        archive = _write_zip(tmp_path, {"Neloaica.exe": b"\x00"})
+        plan = applier._build_plan(archive, _info())
+        script = UpdateApplier.build_helper_script(plan)
+        # The retry wrapper must be defined and used for both moves so
+        # transient OneDrive / Defender locks don't abort the update.
+        assert "function Move-WithRetry" in script
+        assert "Move-WithRetry $InstallDir $BackupDir" in script
+        assert "Move-WithRetry $StagingDir $InstallDir" in script
