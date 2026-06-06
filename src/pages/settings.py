@@ -54,7 +54,7 @@ class SettingsPage(QWidget):
         layout.setSpacing(20)
 
         title = QLabel("Settings")
-        title.setStyleSheet(self.theme.page_title() + "color: #00897b;")
+        title.setStyleSheet(self.theme.page_title() + "color: #c2185b;")
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(title)
 

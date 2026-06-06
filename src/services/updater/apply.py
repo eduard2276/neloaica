@@ -98,6 +98,7 @@ class UpdateApplier:
         install_dir: Optional[Path] = None,
         staging_root: Optional[Path] = None,
         executable_name: str = DEFAULT_EXECUTABLE_NAME,
+        use_wmi: Optional[bool] = None,
         use_schtasks: Optional[bool] = None,
     ) -> None:
         if not executable_name:
@@ -105,8 +106,16 @@ class UpdateApplier:
         self._install_dir = install_dir
         self._staging_root = staging_root
         self._executable_name = executable_name
-        # Scheduled Task spawn is Windows-only and is the default
-        # there; tests / non-Windows fall back to plain ``Popen``.
+        # WMI ``Win32_Process.Create`` is the primary Windows spawn
+        # mechanism: the process is created by the WMI service, so it
+        # is born *outside* our PyInstaller Job Object and survives
+        # ``app.quit()``. It works for both standard and admin accounts
+        # and does not depend on Task Scheduler policy (``schtasks
+        # /Run`` was observed returning SUCCESS while silently never
+        # executing the task on some machines).
+        self._use_wmi = use_wmi if use_wmi is not None else sys.platform == "win32"
+        # Scheduled Task spawn is a Windows-only fallback; tests /
+        # non-Windows fall back to plain ``Popen``.
         self._use_schtasks = use_schtasks if use_schtasks is not None else sys.platform == "win32"
 
     # ---------------------------------------------------------------
@@ -300,16 +309,39 @@ class UpdateApplier:
 
         Order of preference on Windows:
 
-        1. **Scheduled Task** (``schtasks /Create`` + ``/Run``). Runs
-           in the Task Scheduler service context, completely
-           independent of any Job Object we may be in.
-        2. **Detached ``Popen``** (``DETACHED_PROCESS | ...``).
-           Historical fallback if ``schtasks`` fails for any reason
-           (uncommon, e.g. corporate machines that hard-disable it).
+        1. **WMI ``Win32_Process.Create``**. The WMI service performs
+           the ``CreateProcessW``, so the helper is born outside our
+           Job Object and reliably survives ``app.quit()`` on both
+           standard and admin accounts.
+        2. **Scheduled Task** (``schtasks /Create`` + ``/Run``).
+           Fallback. Works in the Task Scheduler service context, but
+           ``/Run`` was observed silently not executing on some
+           machines, hence it is no longer the primary path.
+        3. **Detached ``Popen``** (``DETACHED_PROCESS | ...``). Last
+           resort and the only path on POSIX. On PyInstaller Windows
+           builds the parent Job Object can still kill it, so it is
+           the least reliable option.
+
+        Each attempt is logged (success and failure) to the app log so
+        a failed update is always diagnosable without the helper's own
+        log file.
         """
+        if self._use_wmi:
+            try:
+                self._spawn_via_wmi(plan)
+                logger.info("Update helper spawned via WMI Win32_Process.Create.")
+                return
+            except (OSError, ValueError) as exc:
+                logger.warning(
+                    "WMI spawn failed (%s); trying Scheduled Task for helper %s",
+                    exc,
+                    plan.helper_script_path,
+                )
+
         if self._use_schtasks:
             try:
                 self._spawn_via_schtasks(plan)
+                logger.info("Update helper spawned via Scheduled Task %s.", plan.task_name)
                 return
             except (OSError, ValueError) as exc:
                 logger.warning(
@@ -318,9 +350,11 @@ class UpdateApplier:
                     exc,
                     plan.helper_script_path,
                 )
+
         argv = self.build_spawn_argv(plan)
         try:
             self._popen(argv)
+            logger.info("Update helper spawned via detached Popen.")
         except OSError as exc:
             raise UpdateApplyError(
                 f"Cannot launch helper {plan.helper_script_path}: {exc}"
@@ -348,6 +382,54 @@ class UpdateApplier:
             "-File",
             str(plan.helper_script_path),
         )
+
+    @staticmethod
+    def build_wmi_command(plan: ApplyPlan) -> str:
+        """Render the PowerShell ``-Command`` that spawns via WMI.
+
+        Public so tests can assert on the exact command. The command
+        asks ``Win32_Process.Create`` to launch the helper and exits
+        with the method's ``ReturnValue`` (0 == success) so the parent
+        can detect failure. The inner command line is built from the
+        same argv as the detached-Popen path and embedded as a
+        PowerShell single-quoted string (``'`` escaped by doubling).
+        """
+        inner = UpdateApplier.build_schtasks_tr_value(plan)
+        inner_ps = inner.replace("'", "''")
+        return (
+            "$ErrorActionPreference='Stop'; "
+            "$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create "
+            f"-Arguments @{{ CommandLine = '{inner_ps}' }}; "
+            "exit [int]$r.ReturnValue"
+        )
+
+    @staticmethod
+    def build_wmi_argv(plan: ApplyPlan) -> Sequence[str]:
+        """Argv for the short-lived PowerShell that drives the WMI call.
+
+        This intermediate PowerShell *does* live in our Job Object, but
+        it only needs to outlive us long enough to issue the
+        synchronous ``Win32_Process.Create`` call; the helper it spawns
+        is owned by the WMI service and is unaffected by our exit.
+        """
+        return (
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            UpdateApplier.build_wmi_command(plan),
+        )
+
+    def _spawn_via_wmi(self, plan: ApplyPlan) -> None:
+        """Spawn the helper through WMI so it escapes our Job Object."""
+        argv = self.build_wmi_argv(plan)
+        result = self._run_capture(argv)
+        if result.returncode != 0:
+            raise OSError(
+                f"WMI Win32_Process.Create failed (rc={result.returncode}): "
+                f"{(result.stderr or result.stdout).strip()}"
+            )
 
     @staticmethod
     def build_schtasks_tr_value(plan: ApplyPlan) -> str:
@@ -420,6 +502,14 @@ class UpdateApplier:
 
     def _run_schtasks(self, argv: Sequence[str]) -> "subprocess.CompletedProcess[str]":
         """Tiny seam tests monkeypatch instead of running schtasks."""
+        return self._run_capture(argv)
+
+    def _run_capture(self, argv: Sequence[str]) -> "subprocess.CompletedProcess[str]":
+        """Run a command capturing output. Single seam for WMI/schtasks.
+
+        Tests monkeypatch this (or :meth:`_run_schtasks`) so no real
+        subprocess is started.
+        """
         return subprocess.run(
             list(argv),
             capture_output=True,
@@ -576,6 +666,25 @@ function Remove-SelfTask {{
     }}
 }}
 
+function Move-WithRetry($Source, $Destination) {{
+    # OneDrive / Windows Defender / an antivirus can briefly hold a
+    # handle on a freshly downloaded build or on the just-exited
+    # executable, making Move-Item fail with "Access denied". Retry a
+    # few times before giving up so transient locks don't abort the
+    # whole update.
+    $attempts = 10
+    for ($i = 1; $i -le $attempts; $i++) {{
+        try {{
+            Move-Item -LiteralPath $Source -Destination $Destination -ErrorAction Stop
+            return
+        }} catch {{
+            if ($i -eq $attempts) {{ throw }}
+            Write-Log "Move attempt $i/$attempts failed ($($_.Exception.Message)); retrying in 2s..."
+            Start-Sleep -Seconds 2
+        }}
+    }}
+}}
+
 try {{
     Write-Log "Starting update helper for version {version}."
     Write-Log "Parent PID: $ParentPid"
@@ -591,13 +700,13 @@ try {{
 
     if (Test-Path -LiteralPath $InstallDir) {{
         Write-Log "Renaming $InstallDir -> $BackupDir"
-        Move-Item -LiteralPath $InstallDir -Destination $BackupDir
+        Move-WithRetry $InstallDir $BackupDir
     }} else {{
         Write-Log "Install directory missing, nothing to back up."
     }}
 
     Write-Log "Promoting staged build $StagingDir -> $InstallDir"
-    Move-Item -LiteralPath $StagingDir -Destination $InstallDir
+    Move-WithRetry $StagingDir $InstallDir
 
     Write-Log "Launching new build: $Executable"
     Start-Process -FilePath $Executable
