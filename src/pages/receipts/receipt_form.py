@@ -1,11 +1,14 @@
 """Receipt form page - Create or edit a receipt."""
 
+import re
+
 from PySide6.QtCore import QDate, Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QListWidget,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -30,6 +33,56 @@ from .labor_section import LaborSectionWidget
 from .parts_section import PartsSectionWidget
 from .receipt_info import ReceiptInfoWidget
 
+# --- Text-zoom support ------------------------------------------------------
+# The receipt is a long form and a single job can carry a lot of data, so the
+# user can scale the whole form up or down. Widget stylesheets hard-code their
+# sizes in pixels, so a parent font would not cascade onto them; instead we
+# rewrite every ``px`` dimension (font-size, padding, margin, min-height,
+# border, ...) of the form's widgets on the fly. Scaling padding/margins too -
+# not just the font - is what actually lets more rows fit on screen.
+
+ZOOM_MIN = 0.5
+ZOOM_MAX = 2.0
+ZOOM_STEP = 0.1
+
+# Compact style for the A- / A+ zoom buttons. The shared theme button has
+# large horizontal padding which, at a fixed 44px width, clips the label to
+# nothing - so these get their own zero-padding style with a big bold glyph.
+_ZOOM_BTN_QSS = """
+    QPushButton {
+        background-color: #95a5a6;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 20px;
+        font-weight: bold;
+        padding: 0px;
+    }
+    QPushButton:hover { background-color: #7f8c8d; }
+    QPushButton:pressed { background-color: #707b7c; }
+"""
+
+_PX_RE = re.compile(r"(\d+(?:\.\d+)?)px")
+
+
+def scale_pixel_sizes(qss: str, scale: float) -> str:
+    """Return ``qss`` with every ``Npx`` dimension multiplied by ``scale``.
+
+    This covers font-size, padding, margin, min-height, border width, etc., so
+    scaling down actually compresses the layout (more rows on screen) instead
+    of just shrinking the text. Sizes never drop below 1px. A stylesheet with
+    no ``px`` value is returned unchanged. Pure helper - unit-testable without
+    Qt.
+    """
+    if not qss:
+        return qss
+
+    def _repl(match: "re.Match") -> str:
+        scaled = float(match.group(1)) * scale
+        return f"{max(1, round(scaled))}px"
+
+    return _PX_RE.sub(_repl, qss)
+
 
 class ReceiptFormPage(QWidget):
     """Form page for creating or editing a receipt."""
@@ -44,10 +97,22 @@ class ReceiptFormPage(QWidget):
         self.receipt_data = {}
         self.editing_receipt_id = None
         self._dirty = False
+        self._font_scale = 1.0
+        # Zoom controls are excluded from scaling so they stay a fixed size.
+        self._zoom_chrome: set = set()
         self.setup_ui()
 
         save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
         save_shortcut.activated.connect(self.on_save_clicked)
+
+        for seq, slot in (
+            ("Ctrl++", self.zoom_in),
+            ("Ctrl+=", self.zoom_in),
+            ("Ctrl+-", self.zoom_out),
+            ("Ctrl+0", self.zoom_reset),
+        ):
+            shortcut = QShortcut(QKeySequence(seq), self)
+            shortcut.activated.connect(slot)
 
     def setup_ui(self):
         """Setup the receipt form UI."""
@@ -78,6 +143,7 @@ class ReceiptFormPage(QWidget):
         header_layout.addWidget(self.title_label)
 
         header_layout.addStretch()
+        self._build_zoom_controls(header_layout)
         content_layout.addLayout(header_layout)
 
         # Receipt information section
@@ -171,6 +237,95 @@ class ReceiptFormPage(QWidget):
         scroll_area.setWidget(content_widget)
         main_layout.addWidget(scroll_area)
 
+    # ------------------------------------------------------------------ zoom
+    def _build_zoom_controls(self, header_layout: QHBoxLayout):
+        """Build the text-size (zoom) controls on the right of the header."""
+        caption = QLabel("Text size:")
+        caption.setStyleSheet("color: #2c3e50; font-weight: bold;")
+        header_layout.addWidget(caption)
+
+        self.zoom_out_btn = QPushButton("-")
+        self.zoom_out_btn.setStyleSheet(_ZOOM_BTN_QSS)
+        self.zoom_out_btn.setFixedSize(44, 34)
+        self.zoom_out_btn.setToolTip("Decrease text size (Ctrl+-)")
+        self.zoom_out_btn.clicked.connect(self.zoom_out)
+        header_layout.addWidget(self.zoom_out_btn)
+
+        self.zoom_level_label = QLabel("100%")
+        self.zoom_level_label.setFixedWidth(52)
+        self.zoom_level_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.zoom_level_label.setStyleSheet("color: #2c3e50; font-weight: bold;")
+        header_layout.addWidget(self.zoom_level_label)
+
+        self.zoom_in_btn = QPushButton("+")
+        self.zoom_in_btn.setStyleSheet(_ZOOM_BTN_QSS)
+        self.zoom_in_btn.setFixedSize(44, 34)
+        self.zoom_in_btn.setToolTip("Increase text size (Ctrl++)")
+        self.zoom_in_btn.clicked.connect(self.zoom_in)
+        header_layout.addWidget(self.zoom_in_btn)
+
+        self.zoom_reset_btn = QPushButton("Reset")
+        self.zoom_reset_btn.setStyleSheet(theme.button("gray"))
+        self.zoom_reset_btn.setFixedHeight(34)
+        self.zoom_reset_btn.setToolTip("Reset text size (Ctrl+0)")
+        self.zoom_reset_btn.clicked.connect(self.zoom_reset)
+        header_layout.addWidget(self.zoom_reset_btn)
+
+        self._zoom_chrome = {
+            caption,
+            self.zoom_out_btn,
+            self.zoom_level_label,
+            self.zoom_in_btn,
+            self.zoom_reset_btn,
+        }
+
+    def zoom_in(self):
+        """Increase the receipt text size by one step."""
+        self._set_font_scale(self._font_scale + ZOOM_STEP)
+
+    def zoom_out(self):
+        """Decrease the receipt text size by one step."""
+        self._set_font_scale(self._font_scale - ZOOM_STEP)
+
+    def zoom_reset(self):
+        """Reset the receipt text size to 100%."""
+        self._set_font_scale(1.0)
+
+    def _set_font_scale(self, scale: float):
+        """Clamp ``scale`` to the allowed range and re-apply it to the form."""
+        scale = max(ZOOM_MIN, min(ZOOM_MAX, round(scale, 2)))
+        self._font_scale = scale
+        if hasattr(self, "zoom_level_label"):
+            self.zoom_level_label.setText(f"{round(scale * 100)}%")
+        self._apply_font_scale()
+
+    def _apply_font_scale(self, only_new: bool = False):
+        """Rewrite ``font-size`` of every form widget to match the zoom level.
+
+        Each widget's original stylesheet is cached once (``_base_qss``) so the
+        scaled value is always derived from the unscaled baseline. ``QListWidget``
+        instances manage their own stylesheet (item count toggles the style), so
+        they are skipped; their child rows are scaled instead. When ``only_new``
+        is set, already-cached widgets are left untouched - used after rows are
+        added so only the fresh widgets get scaled.
+        """
+        for w in self.findChildren(QWidget):
+            if w in self._zoom_chrome or isinstance(w, QListWidget):
+                continue
+            base = w.property("_base_qss")
+            if base is None:
+                base = w.styleSheet()
+                w.setProperty("_base_qss", base)
+            elif only_new:
+                continue
+            if base and "px" in base:
+                w.setStyleSheet(scale_pixel_sizes(base, self._font_scale))
+
+    def _rescale_new_widgets(self):
+        """Scale rows added after a zoom was applied (no-op at 100%)."""
+        if self._font_scale != 1.0:
+            self._apply_font_scale(only_new=True)
+
     def load_for_new(self):
         """Prepare the form for creating a new receipt."""
         self.editing_receipt_id = None
@@ -256,6 +411,7 @@ class ReceiptFormPage(QWidget):
         """Handle defects list change."""
         self.receipt_data["defects"] = defect_ids
         self._dirty = True
+        self._rescale_new_widgets()
 
     def on_estimates_changed(self, estimate_cost: float, estimated_final_date: str):
         """Handle estimates section data change."""
@@ -267,11 +423,13 @@ class ReceiptFormPage(QWidget):
         """Handle discovered defects list change."""
         self.receipt_data["discovered_defects"] = defect_ids
         self._dirty = True
+        self._rescale_new_widgets()
 
     def on_parts_changed(self, part_ids: list):
         """Handle parts list change."""
         self.receipt_data["parts"] = part_ids
         self._dirty = True
+        self._rescale_new_widgets()
 
     def on_labor_changed(self, labor_ids: list, total_cost: float):
         """Handle labor list change."""
@@ -279,6 +437,7 @@ class ReceiptFormPage(QWidget):
         self.receipt_data["total_labor_cost"] = total_cost
         self._dirty = True
         self.update_grand_total()
+        self._rescale_new_widgets()
 
     def on_billable_parts_changed(self, parts_list: list, total_cost: float):
         """Handle billable parts list change."""
@@ -286,6 +445,7 @@ class ReceiptFormPage(QWidget):
         self.receipt_data["total_parts_cost"] = total_cost
         self._dirty = True
         self.update_grand_total()
+        self._rescale_new_widgets()
 
     def update_grand_total(self):
         """Update the grand total label (Labor + Parts)."""
