@@ -152,3 +152,44 @@ class TestZoomApplication:
         assert form.zoom_in_btn.property("_base_qss") is None
         assert form.zoom_out_btn.property("_base_qss") is None
         assert form.zoom_level_label.property("_base_qss") is None
+
+
+class TestZoomCompactsListRows:
+    """Zoom must also shrink the (programmatically sized) list rows, not just
+    the stylesheet text, so more rows fit on screen."""
+
+    def _add_billable_row(self, form):
+        with patch(
+            "src.pages.receipts.billable_parts_section.get_all_parts",
+            return_value=[{"id": 1, "part_name": "Air Filter"}],
+        ):
+            form.billable_parts_widget.load_data(restore_state=False)
+        form.billable_parts_widget.part_combo.setCurrentIndex(1)
+        return form.billable_parts_widget.parts_list
+
+    def test_row_height_scales_and_resets(self, form):
+        lw = self._add_billable_row(form)
+        assert lw.count() == 1
+        base_h = lw.item(0).sizeHint().height()
+        assert base_h == 50  # billable rows are 50px tall at 100%
+
+        form.zoom_out()  # 0.9
+        assert lw.item(0).sizeHint().height() == round(50 * 0.9)
+
+        form.zoom_reset()
+        assert lw.item(0).sizeHint().height() == 50
+
+    def test_row_margins_scale(self, form):
+        lw = self._add_billable_row(form)
+        item_widget = lw.itemWidget(lw.item(0))
+
+        form.zoom_out()  # 0.9 -> top/bottom margin 8 -> round(7.2) = 7
+        margins = item_widget.layout().contentsMargins()
+        assert margins.top() == round(8 * 0.9)
+        assert margins.left() == round(10 * 0.9)
+
+    def test_row_added_while_zoomed_is_compact(self, form):
+        # Zoom out first, then add a row: the new row must come in scaled.
+        form.zoom_out()  # 0.9
+        lw = self._add_billable_row(form)
+        assert lw.item(0).sizeHint().height() == round(50 * 0.9)

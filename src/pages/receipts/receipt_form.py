@@ -2,7 +2,7 @@
 
 import re
 
-from PySide6.QtCore import QDate, Qt, Signal
+from PySide6.QtCore import QDate, QSize, Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QGroupBox,
@@ -63,6 +63,19 @@ _ZOOM_BTN_QSS = """
 """
 
 _PX_RE = re.compile(r"(\d+(?:\.\d+)?)px")
+
+# Custom item-data role used to remember a list row's unscaled height so we
+# can always derive the zoomed height from the original baseline.
+_ROW_BASE_H_ROLE = int(Qt.ItemDataRole.UserRole) + 137
+
+# Receipt sections that render rows in a QListWidget and expose ``_resize_list``.
+_LIST_SECTION_ATTRS = (
+    "defects_widget",
+    "discovered_defects_widget",
+    "parts_widget",
+    "labor_widget",
+    "billable_parts_widget",
+)
 
 
 def scale_pixel_sizes(qss: str, scale: float) -> str:
@@ -320,6 +333,63 @@ class ReceiptFormPage(QWidget):
                 continue
             if base and "px" in base:
                 w.setStyleSheet(scale_pixel_sizes(base, self._font_scale))
+
+        self._scale_list_rows(only_new=only_new)
+
+    def _scale_list_rows(self, only_new: bool = False):
+        """Scale the height and inner margins of every list row.
+
+        List rows set their height (``setSizeHint``) and content margins in
+        Python, not via a stylesheet, so the stylesheet rewrite cannot touch
+        them - they have to be scaled here. After scaling, each section is asked
+        to recompute its list height so no empty gap is left behind.
+        """
+        for attr in _LIST_SECTION_ATTRS:
+            section = getattr(self, attr, None)
+            if section is None:
+                continue
+            changed = False
+            for lw in section.findChildren(QListWidget):
+                for i in range(lw.count()):
+                    if self._scale_one_row(lw, lw.item(i), only_new):
+                        changed = True
+            if changed and hasattr(section, "_resize_list"):
+                section._resize_list()
+
+    def _scale_one_row(self, lw: QListWidget, item, only_new: bool) -> bool:
+        """Scale one list row's height + its widget margins. Returns True if touched."""
+        base_h = item.data(_ROW_BASE_H_ROLE)
+        if base_h is None:
+            base_h = item.sizeHint().height()
+            item.setData(_ROW_BASE_H_ROLE, base_h)
+        elif only_new:
+            return False
+
+        sh = item.sizeHint()
+        item.setSizeHint(QSize(sh.width(), max(1, round(base_h * self._font_scale))))
+
+        widget = lw.itemWidget(item)
+        if widget is not None:
+            self._scale_layout_margins(widget)
+        return True
+
+    def _scale_layout_margins(self, widget: QWidget):
+        """Scale a row widget's outer layout margins/spacing from their baseline."""
+        layout = widget.layout()
+        if layout is None:
+            return
+        base = widget.property("_base_margins")
+        if base is None:
+            m = layout.contentsMargins()
+            base = (m.left(), m.top(), m.right(), m.bottom(), layout.spacing())
+            widget.setProperty("_base_margins", base)
+        left, top, right, bottom, spacing = base
+        s = self._font_scale
+        layout.setContentsMargins(
+            round(left * s), round(top * s), round(right * s), round(bottom * s)
+        )
+        if spacing and spacing > 0:
+            layout.setSpacing(max(0, round(spacing * s)))
 
     def _rescale_new_widgets(self):
         """Scale rows added after a zoom was applied (no-op at 100%)."""
