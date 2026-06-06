@@ -220,8 +220,10 @@ class BillablePartsSectionWidget(QWidget):
         if not part:
             return
 
-        # Add to list with default values (empty units)
-        self.add_part(part_id, part["part_name"], 0.0, 0.0)
+        # Add to list with default values (empty units) and move the
+        # caret straight into the new row's Units field so the user can
+        # type the quantity immediately after picking the part.
+        self.add_part(part_id, part["part_name"], 0.0, 0.0, focus_units=True)
 
         # Reset combo box
         self.part_combo.blockSignals(True)
@@ -229,9 +231,21 @@ class BillablePartsSectionWidget(QWidget):
         self.part_combo.blockSignals(False)
 
     def add_part(
-        self, part_id: int, part_name: str, units: float = 0.0, price_per_unit: float = 0.0
+        self,
+        part_id: int,
+        part_name: str,
+        units: float = 0.0,
+        price_per_unit: float = 0.0,
+        focus_units: bool = False,
     ):
-        """Add a part to the list."""
+        """Add a part to the list.
+
+        When ``focus_units`` is True (a fresh user-initiated add) the
+        keyboard focus is moved to the new row's Units input so the
+        quantity can be entered right away. It stays False for bulk
+        population (``set_data`` / restore) so loading a receipt does
+        not yank focus around.
+        """
         # Create list item
         list_item = QListWidgetItem()
         self.parts_list.addItem(list_item)
@@ -341,6 +355,11 @@ class BillablePartsSectionWidget(QWidget):
 
         # Emit signal
         self.emit_parts_changed()
+
+        # Move focus into the Units field of the row we just created.
+        if focus_units:
+            units_input.setFocus()
+            units_input.selectAll()
 
     def update_subtotal_label(self, part_id: int):
         """Update the subtotal label for a specific part."""

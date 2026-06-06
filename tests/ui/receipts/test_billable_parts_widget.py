@@ -164,6 +164,47 @@ class TestSignal:
 
 
 # ===========================================================================
+# TestUnitsAutoFocus
+# ===========================================================================
+
+
+class TestUnitsAutoFocus:
+    """Selecting a part from the combo should drop the caret straight
+    into that row's Units field so the quantity can be typed right away."""
+
+    def test_combo_add_focuses_units_input(self, widget, monkeypatch):
+        from PySide6.QtWidgets import QLineEdit
+
+        focused: list = []
+        monkeypatch.setattr(
+            QLineEdit, "setFocus", lambda self, *a, **k: focused.append(self), raising=True
+        )
+
+        widget.part_combo.setCurrentIndex(1)
+
+        # Exactly one input was focused: the Units field (placeholder "1"),
+        # not the Price field (placeholder "e.g. 150 Lei").
+        assert len(focused) == 1
+        assert focused[0].placeholderText() == "1"
+
+    def test_set_data_does_not_steal_focus(self, widget, monkeypatch):
+        from PySide6.QtWidgets import QLineEdit
+
+        focused: list = []
+        monkeypatch.setattr(
+            QLineEdit, "setFocus", lambda self, *a, **k: focused.append(self), raising=True
+        )
+
+        with patch(
+            "src.pages.receipts.billable_parts_section.get_all_parts", return_value=list(_PARTS)
+        ):
+            widget.set_data([{"part_id": 1, "units": 2, "price_per_unit": 100.0}])
+
+        # Bulk population must not yank focus into any row.
+        assert focused == []
+
+
+# ===========================================================================
 # TestSetData
 # ===========================================================================
 
